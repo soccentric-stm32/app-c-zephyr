@@ -45,6 +45,12 @@ execute_process(COMMAND git -C "${CMAKE_CURRENT_SOURCE_DIR}" rev-parse HEAD
 if(NOT APP_GIT_COMMIT)
     set(APP_GIT_COMMIT "unknown")
     set(APP_GIT_COMMIT_FULL "")
+else()
+    execute_process(COMMAND git -C "${CMAKE_CURRENT_SOURCE_DIR}" status --porcelain
+        OUTPUT_VARIABLE APP_GIT_DIRTY OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+    if(APP_GIT_DIRTY)
+        string(APPEND APP_GIT_COMMIT "-dirty")
+    endif()
 endif()
 string(TIMESTAMP APP_BUILD_DATE "%Y-%m-%d %H:%M:%S" UTC)
 string(TIMESTAMP APP_BUILD_TIMESTAMP "%s" UTC)
