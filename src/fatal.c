@@ -14,6 +14,7 @@
 
 #include <soc.h>
 #include <zephyr/arch/cpu.h>
+#include <zephyr/arch/arm/arch.h>
 #include <zephyr/fatal.h>
 #include <zephyr/kernel.h>
 #include <zephyr/linker/sections.h>
@@ -176,6 +177,29 @@ static void fault_show_and_reset(void)
 
 static app_fault_reason_t fatal_reason(unsigned int reason)
 {
+	/* Zephyr 4.x reports Cortex-M exceptions with arch-specific reasons
+	 * (K_ERR_ARM_MEM_*, K_ERR_ARM_BUS_*, K_ERR_ARM_USAGE_*), not only
+	 * K_ERR_CPU_EXCEPTION.  Without this mapping every MemManage,
+	 * BusFault and UsageFault was saved as "startup" with CFSR=0. */
+	if (reason >= K_ERR_ARM_MEM_GENERIC &&
+	    reason <= K_ERR_ARM_MEM_FP_LAZY_STATE_PRESERVATION) {
+		return APP_FAULT_MEMMANAGE;
+	}
+	if (reason >= K_ERR_ARM_BUS_GENERIC &&
+	    reason <= K_ERR_ARM_BUS_FP_LAZY_STATE_PRESERVATION) {
+		return APP_FAULT_BUSFAULT;
+	}
+	if (reason >= K_ERR_ARM_USAGE_GENERIC &&
+	    reason <= K_ERR_ARM_USAGE_UNDEFINED_INSTRUCTION) {
+		return reason == K_ERR_ARM_USAGE_STACK_OVERFLOW
+			       ? APP_FAULT_STACK_OVERFLOW
+			       : APP_FAULT_USAGEFAULT;
+	}
+	if (reason >= K_ERR_ARM_SECURE_GENERIC &&
+	    reason <= K_ERR_ARM_SECURE_LAZY_STATE_ERROR) {
+		return APP_FAULT_MEMMANAGE;
+	}
+
 	if (reason == K_ERR_CPU_EXCEPTION) {
 		uint32_t cfsr = SCB->CFSR;
 
