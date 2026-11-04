@@ -8,7 +8,7 @@
 #          scripts/build.sh clean      rm -rf build, then configure + build
 #
 # Outputs: build/zephyr-app.elf, build/zephyr-app.bin, build/zephyr-app.hex,
-#          build/zephyr/zephyr.map
+#          build/zephyr-app.map and the bootloader image build/zephyr-app.img
 #
 
 set -euo pipefail
@@ -26,7 +26,10 @@ fi
 "$DEV" run cmake --build /work/build
 "$DEV" run bash -c '
     set -e
-    cp build/zephyr/zephyr.elf build/zephyr-app.elf
-    cp build/zephyr/zephyr.bin build/zephyr-app.bin
-    cp build/zephyr/zephyr.hex build/zephyr-app.hex
-    arm-none-eabi-size build/zephyr-app.elf'
+    test -f build/zephyr-app.elf
+    test -f build/zephyr-app.bin
+    test -f build/zephyr-app.hex
+    test -f build/zephyr-app.map
+    test -f build/zephyr-app.img
+    ls -l build/zephyr-app.elf build/zephyr-app.bin build/zephyr-app.hex \
+          build/zephyr-app.map build/zephyr-app.img'
