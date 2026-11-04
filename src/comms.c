@@ -25,6 +25,7 @@
 #include "flatcc/flatcc_builder.h"
 #include "handover.h"
 #include "health.h"
+#include "identity.h"
 #include "hwlink.h"
 #include "hwlink_builder.h"
 #include "hwlink_verifier.h"
@@ -207,8 +208,10 @@ static bool send_hello_reply(uint16_t seq)
 		flatbuffers_string_create_str(&builder, APP_GIT_COMMIT);
 	flatbuffers_string_ref_t build =
 		flatbuffers_string_create_str(&builder, APP_BUILD_DATE);
+	char identity_detail[192];
+	(void)app_identity_detail(identity_detail, sizeof(identity_detail));
 	flatbuffers_string_ref_t detail =
-		flatbuffers_string_create_str(&builder, "Zephyr DEMO");
+		flatbuffers_string_create_str(&builder, identity_detail);
 
 	uint32_t idcode = device_idcode();
 	uint32_t dev_id = idcode & 0xFFFU;

@@ -103,6 +103,7 @@ target_sources(app PRIVATE
     src/handover.c
     src/reset_cause.c
     src/flash_confirm.c
+    src/identity.c
     src/uart_hwlink.c
     src/hwlink.c
     src/flatcc_port.c
