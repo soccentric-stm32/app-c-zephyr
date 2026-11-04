@@ -17,14 +17,19 @@ Everything runs in the container through `scripts/docker-dev.sh`:
 ```bash
 scripts/docker-dev.sh build   # build the image once (and the stm32-dev base if missing)
 scripts/build.sh              # build inside the container
-make flash                    # flash build/zephyr-app.elf over SWD, verify, reset
+make flash                    # upload build/zephyr-app.img through BOOT (bootctl)
+make erase-all                # erase BOOT + slots (asks for confirmation)
 make help                     # all targets
 ```
 
 Outputs in `build/`: `zephyr-app.elf`, `zephyr-app.bin`, `zephyr-app.hex`,
 `zephyr-app.map` and the BOOT image file `zephyr-app.img` (256-byte image
 header + binary). The image is linked at `0x0800C000`
-(`CONFIG_FLASH_LOAD_OFFSET`) and starts only through the bootloader. It is a
+(`CONFIG_FLASH_LOAD_OFFSET`) and starts only through the bootloader. `make
+flash` uploads the `.img` with `bootctl.py update --activate`; never program
+the raw `.elf`/`.bin` into a slot, because BOOT requires the header and
+metadata records. Point `BOOTCTL` or `PORT` elsewhere if the defaults do not
+fit. It is a
 freestanding Zephyr app: plain CMake against `$ZEPHYR_BASE`, no west workspace
 needed. The build also enforces the 128 KB flash / 64 KB RAM budget and prints
 both figures.
