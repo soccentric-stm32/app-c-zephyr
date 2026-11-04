@@ -29,7 +29,6 @@
 #define HEALTH_STOP_KICK_MS       10000U
 #define HEALTH_REFRESH_MS         100U
 #define HEALTH_MIN_CHECKINS       5U
-#define HEALTH_MIN_FREE_HEAP      4096U
 
 #define HEALTH_EVT_LED    BIT(HEALTH_TASK_LED)
 #define HEALTH_EVT_BUTTON BIT(HEALTH_TASK_BUTTON)
@@ -109,13 +108,7 @@ static bool health_conditions_met(void)
 		return false;
 	}
 
-	uint32_t free_bytes = 0U;
-	uint32_t min_free = 0U;
-
-	app_heap_stats(&free_bytes, &min_free);
-	if (free_bytes < HEALTH_MIN_FREE_HEAP) {
-		return false;
-	}
+	/* No heap: there is nothing to monitor here (see main.c). */
 	return comms_rx_running();
 #endif
 }

@@ -14,7 +14,6 @@
 
 #include <soc.h>
 #include <zephyr/kernel.h>
-#include <zephyr/sys/sys_heap.h>
 
 #include "app_fault.h"
 #include "handover.h"
@@ -30,24 +29,13 @@ BUILD_ASSERT(CONFIG_FLASH_LOAD_OFFSET == 0xC000,
 BUILD_ASSERT(CONFIG_FLASH_LOAD_SIZE == 0xF4000,
 	     "ZBT-001: the application slot is 976 KB");
 
-/* Runtime heap used for the Status statistics.  The application itself
- * never allocates; flatcc uses its own fixed arena. */
-K_HEAP_DEFINE(zdemo_heap, 6144);
-
+/* The application is heapless: flatcc uses a fixed arena and malloc/free
+ * are not linked.  Reporting a private unused heap would make the health
+ * check and the Status figures meaningless, so report zero. */
 void app_heap_stats(uint32_t *free_bytes, uint32_t *min_free_bytes)
 {
-	struct sys_memory_stats stats = { 0 };
-
-	if (sys_heap_runtime_stats_get(&zdemo_heap.heap, &stats) != 0) {
-		*free_bytes = 0U;
-		*min_free_bytes = 0U;
-		return;
-	}
-
-	*free_bytes = (uint32_t)stats.free_bytes;
-	*min_free_bytes = (uint32_t)(stats.free_bytes +
-				     stats.allocated_bytes -
-				     stats.max_allocated_bytes);
+	*free_bytes = 0U;
+	*min_free_bytes = 0U;
 }
 
 int main(void)
