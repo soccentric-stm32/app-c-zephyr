@@ -19,7 +19,7 @@ there. It adds Zephyr v4.4.2 (only the `hal_stm32` and CMSIS modules) in `/opt/z
 `scripts/docker-dev.sh build` builds the base image first if it is missing,
 then this one. The full description of the base image is in the validation
 firmware's
-[docker/README.md](https://github.com/soccentric-stm32/soccentric-stm32-validation-firmware/blob/HEAD/docker/README.md).
+[docker/README.md](https://github.com/soccentric-stm32/validation-firmware/blob/HEAD/docker/README.md).
 
 | Variable | Default |
 |---|---|

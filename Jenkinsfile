@@ -65,7 +65,7 @@ pipeline {
                     python3 - <<'PY'
 from pathlib import Path
 
-# The application must stay compatible with soccentric-stm32-bootloader:
+# The application must stay compatible with bootloader:
 # BOOT maps the active bank at 0x08000000, so every image links at the slot
 # offset. These values mirror LAY-001..LAY-005 and Appendix B.
 expected_defines = {

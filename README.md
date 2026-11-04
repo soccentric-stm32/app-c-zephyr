@@ -1,12 +1,12 @@
-# soccentric-stm32-zephyr-application
+# app-c-zephyr
 
 The demo application of the NUCLEO-F767ZI system built on Zephyr RTOS (board `nucleo_f767zi`). It runs under the A/B bootloader from either slot and does the same job as the C FreeRTOS demo, so the C, Rust and Zephyr versions can be compared like for like.
 
 | | |
 |---|---|
 | Requirements | [SRS.md](SRS.md) — SRS-ZEPHYR-F767 (v0.1 draft) |
-| Functional baseline | [SRS-DEMO-F767](https://github.com/soccentric-stm32/soccentric-stm32-application/blob/HEAD/SRS.md) — same behaviour as the C FreeRTOS demo |
-| Board | NUCLEO-F767ZI — see [Hardware.md](https://github.com/soccentric-stm32/soccentric-stm32-validation-firmware/blob/HEAD/Hardware.md) |
+| Functional baseline | [SRS-DEMO-F767](https://github.com/soccentric-stm32/app-c-freertos/blob/HEAD/SRS.md) — same behaviour as the C FreeRTOS demo |
+| Board | NUCLEO-F767ZI — see [Hardware.md](https://github.com/soccentric-stm32/validation-firmware/blob/HEAD/Hardware.md) |
 | Status | Implemented: bootloader slot and hand-over record, 216 MHz clock and caches from devicetree/Kconfig, LED patterns on LD1/LD2/LD3, B1 debounce and button events, HWLINK on USART3 (Hello/Ping/Status/SetLed/SetLedAll/ClearFault/SetBaud/EnterBootloader/Reset), health check with IWDG and CONFIRMED record, fatal-error record, and the `zephyr-app.img` bootloader image. |
 | Build environment | [docker/README.md](docker/README.md): `stm32-dev-zephyr` = the shared `stm32-dev` image + Zephyr v4.4.2 (`hal_stm32`, CMSIS) + Zephyr SDK 1.0.1 (`arm-zephyr-eabi`) |
 
@@ -89,13 +89,14 @@ only flash the application ever writes (the `CONFIRMED` record).
 
 | Repository | Role |
 |---|---|
-| [soccentric-stm32-validation-firmware](https://github.com/soccentric-stm32/soccentric-stm32-validation-firmware) | HWVAL hardware validation firmware |
-| [soccentric-stm32-bootloader](https://github.com/soccentric-stm32/soccentric-stm32-bootloader) | A/B bootloader (UART update, CRC32, trial boot and rollback) |
-| [soccentric-stm32-application](https://github.com/soccentric-stm32/soccentric-stm32-application) | FreeRTOS demo application in C |
-| [soccentric-stm32-rust-application](https://github.com/soccentric-stm32/soccentric-stm32-rust-application) | The same demo in Rust (Embassy) |
-| [soccentric-stm32-zephyr-application](https://github.com/soccentric-stm32/soccentric-stm32-zephyr-application) | The same demo on Zephyr RTOS |
-| [soccentric-stm32-validation-gui](https://github.com/soccentric-stm32/soccentric-stm32-validation-gui) | PySide6 GUI: runs HWVAL tests, updates and flashes firmware |
-| [soccentric-stm32-factory-provisioning](https://github.com/soccentric-stm32/soccentric-stm32-factory-provisioning) | HWVAL Factory: end-of-line test and provisioning station |
+| [validation-firmware](https://github.com/soccentric-stm32/validation-firmware) | HWVAL hardware validation firmware |
+| [bootloader](https://github.com/soccentric-stm32/bootloader) | A/B bootloader (UART update, CRC32, trial boot and rollback) |
+| [app-c-freertos](https://github.com/soccentric-stm32/app-c-freertos) | FreeRTOS demo application in C |
+| [app-rust-freertos](https://github.com/soccentric-stm32/app-rust-freertos) | The same demo in Rust (Embassy) |
+| [app-c-zephyr](https://github.com/soccentric-stm32/app-c-zephyr) | The same demo on Zephyr RTOS |
+| [app-rust-zephyr](https://github.com/soccentric-stm32/app-rust-zephyr) | The same demo in Rust on Zephyr RTOS |
+| [validation-gui](https://github.com/soccentric-stm32/validation-gui) | PySide6 GUI: runs HWVAL tests, updates and flashes firmware |
+| [factory-station](https://github.com/soccentric-stm32/factory-station) | HWVAL Factory: end-of-line test and provisioning station |
 
 ## License
 

@@ -28,7 +28,7 @@
 ELF      := build/zephyr-app.elf
 IMAGE    := build/zephyr-app.img
 DEV      := scripts/docker-dev.sh
-BOOTCTL  ?= ../soccentric-stm32-bootloader/tools/bootctl.py
+BOOTCTL  ?= ../bootloader/tools/bootctl.py
 PORT     ?=
 PYTHON   ?= python3
 
