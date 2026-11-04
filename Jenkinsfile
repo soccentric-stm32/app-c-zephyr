@@ -1,6 +1,13 @@
 // Jenkinsfile - multi-stage CI for the Zephyr RTOS demo application.
 //
-//   Checkout -> Toolchain -> Build -> Boot contract -> Image -> Publish
+//   Checkout -> Toolchain -> Build -> Boot contract -> Image -> Package
+//   -> Release (tags) -> Archive
+//
+// Package builds dist/<repo>-<version>.tar.gz (outputs, manifest.json,
+// SHA256SUMS) on every run.  Release runs only for a tag v<version> and
+// publishes dist/ as a GitHub release with the Jenkins secret-text credential
+// github-release-token.  To release: bump the version, push, then push the
+// tag (git tag v0.2.0 && git push origin v0.2.0).
 //
 // Builds run through scripts/docker-dev.sh (ZCON-001). The Zephyr image is
 // built on top of the shared stm32-dev base, so the Toolchain stage creates
@@ -154,15 +161,30 @@ PY
             }
         }
 
-        stage('Publish') {
+        stage('Package') {
             steps {
                 sh '''
-                    sha256sum build/zephyr-app.elf build/zephyr-app.bin build/zephyr-app.hex > build/SHA256SUMS
-                    sha256sum build/zephyr-app.img build/zephyr-app.map >> build/SHA256SUMS
-                    cat build/SHA256SUMS
+                    python3 ci/package.py --name app-c-zephyr --version "$(ci/version.sh)" \\
+                        build/zephyr-app.elf build/zephyr-app.bin build/zephyr-app.hex build/zephyr-app.map build/zephyr-app.img \\
+                        README.md LICENSE
                 '''
-                archiveArtifacts artifacts: 'build/zephyr-app.elf,build/zephyr-app.bin,build/zephyr-app.hex,build/zephyr-app.img,build/zephyr-app.map,build/SHA256SUMS',
-                                 fingerprint: true
+            }
+        }
+
+        stage('Release') {
+            // Only for a tag build (Multibranch job with tag discovery).  The
+            // tag must be v<version>; ci/github_release.py checks it.
+            when { buildingTag() }
+            steps {
+                withCredentials([string(credentialsId: 'github-release-token', variable: 'GITHUB_TOKEN')]) {
+                    sh 'python3 ci/github_release.py --tag "${TAG_NAME}" --version "$(ci/version.sh)" dist/*'
+                }
+            }
+        }
+
+        stage('Archive') {
+            steps {
+                archiveArtifacts artifacts: 'dist/*', fingerprint: true
             }
         }
     }
