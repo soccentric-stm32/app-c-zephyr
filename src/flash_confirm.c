@@ -26,6 +26,8 @@ BUILD_ASSERT(PARTITION_ADDRESS(app_meta_partition) == APP_RUNNING_META_ADDR,
 	     "app_meta_partition must alias the running slot metadata sector");
 BUILD_ASSERT(PARTITION_SIZE(app_meta_partition) == APP_META_SIZE,
 	     "app_meta_partition must cover exactly one metadata sector");
+BUILD_ASSERT(APP_META_CONFIRMED_OFFSET + APP_META_RECORD_SIZE <= APP_META_SIZE,
+	     "CONFIRMED record must lie inside app_meta_partition");
 
 static const struct device *const flash_dev =
 	PARTITION_DEVICE(app_meta_partition);
