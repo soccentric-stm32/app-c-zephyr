@@ -8,9 +8,9 @@ One commit per file: add/extend Doxygen-style documentation, mark it `done`, com
 |---|------|--------|
 | 1 |  pending | pending |
 | 2 | src/boot_contract.h | done |
-| 3 | src/button.c | pending |
+| 3 | src/button.c | done |
 | 1 | src/app_fault.h | done |
-| 4 | src/button.h | pending |
+| 4 | src/button.h | done |
 | 5 | src/comms.c | pending |
 | 6 | src/comms.h | pending |
 | 7 | src/fatal.c | pending |
