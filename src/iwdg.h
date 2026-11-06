@@ -12,10 +12,19 @@
 
 #include <stdbool.h>
 
-/* Feed as early as possible; BOOT starts the IWDG before hand-over. */
+/**
+ * @brief Feed the STM32 IWDG as early as possible.
+ *
+ * BOOT starts the IWDG before hand-over, so this must be callable from
+ * PRE_KERNEL context. Safe no-op if the driver is not yet ready.
+ */
 void app_wdt_feed(void);
 
-/* Install a 4 s timeout (and feed again). */
+/**
+ * @brief Install the 4 s IWDG timeout (once) and feed it again.
+ *
+ * @return true on success, false on driver or configuration error.
+ */
 bool app_wdt_init(void);
 
 #endif /* ZDEMO_IWDG_H */

@@ -26,8 +26,8 @@ One commit per file: add/extend Doxygen-style documentation, mark it `done`, com
 | 17 | src/hwlink.h | done |
 | 18 | src/identity.c | done |
 | 19 | src/identity.h | done |
-| 20 | src/iwdg.c | pending |
-| 21 | src/iwdg.h | pending |
+| 20 | src/iwdg.c | done |
+| 21 | src/iwdg.h | done |
 | 22 | src/led.c | pending |
 | 23 | src/led.h | pending |
 | 24 | src/main.c | pending |
