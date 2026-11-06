@@ -232,6 +232,12 @@ static void health_thread(void *p1, void *p2, void *p3)
 		    (now - start_time) >= HEALTH_CHECK_AT_MS) {
 			if (health_conditions_met()) {
 				if (app_flash_confirm_running_slot()) {
+					/* The CONFIRMED record is in flash, so the
+					 * slot is no longer on trial.  g_handover was
+					 * decoded once at start-up; update it so
+					 * Status reports CONFIRMED.  A single byte
+					 * store, so Comms never sees a torn value. */
+					g_handover.trial = 1U;
 					health_check_pass();
 				} else {
 					health_check_fail();

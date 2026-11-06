@@ -92,8 +92,10 @@ static bool rx_enc_overflow;
 
 /** Decoded (COBS-decoded, not yet deframed) receive buffer. */
 static uint8_t rx_raw[HWLINK_MAX_FRAME];
-/** Deframed FlatBuffer payload extracted from the last receive frame. */
-static uint8_t rx_payload[HWLINK_MAX_FRAME];
+/** Deframed FlatBuffer payload extracted from the last receive frame.  The
+ * flatcc verifier rejects a buffer that is not uoffset-aligned, and the
+ * largest scalar in the schema is 8 bytes. */
+static uint8_t rx_payload[HWLINK_MAX_FRAME] __aligned(8);
 /** Outgoing frame, built before COBS encoding. */
 static uint8_t raw_tx[HWLINK_MAX_FRAME];
 
