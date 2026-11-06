@@ -13,8 +13,8 @@ One commit per file: add/extend Doxygen-style documentation, mark it `done`, com
 | 4 | src/button.h | done |
 | 5 | src/comms.c | done |
 | 6 | src/comms.h | done |
-| 7 | src/fatal.c | pending |
-| 8 | src/flash_confirm.c | pending |
+| 7 | src/fatal.c | done |
+| 8 | src/flash_confirm.c | done |
 | 9 | src/flash_confirm.h | pending |
 | 10 | src/flatcc_port.c | pending |
 | 11 | src/flatcc_port.h | pending |
