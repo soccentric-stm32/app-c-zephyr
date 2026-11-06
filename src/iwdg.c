@@ -20,21 +20,34 @@
 
 #include "iwdg.h"
 
+/* IWDG timeout used by this firmware (BOOT sets the same 4 s window). */
 #define APP_WDT_TIMEOUT_MS 4000U
 
+/** Watchdog device from the devicetree (alias watchdog0). */
 static const struct device *const wdt = DEVICE_DT_GET(DT_ALIAS(watchdog0));
+/** true once app_wdt_init() has installed the timeout. */
 static bool wdt_installed;
 
-/* BOOT starts the IWDG with a 4 s timeout.  Feed it from the very first
- * Zephyr initialisation step, before drivers and the scheduler are up. */
+/**
+ * @brief First IWDG service, run in PRE_KERNEL_1 before any driver starts.
+ *
+ * BOOT starts the IWDG with a 4 s timeout; this kick keeps it alive while
+ * Zephyr initialises, before the scheduler or the health thread can run.
+ *
+ * @return 0 always.
+ */
 static int app_wdt_early_feed(void)
 {
 	IWDG->KR = 0x0000AAAAUL;
 	return 0;
 }
 
-SYS_INIT(app_wdt_early_feed, PRE_KERNEL_1, 0);
-
+/**
+ * @brief Feed the watchdog through the Zephyr driver.
+ *
+ * A safe no-op if the driver is not yet ready; called from task context
+ * at a bounded rate by the health thread.
+ */
 void app_wdt_feed(void)
 {
 	if (device_is_ready(wdt)) {
@@ -42,6 +55,15 @@ void app_wdt_feed(void)
 	}
 }
 
+/**
+ * @brief Install (once) and start the IWDG timeout at 4 s; then feed it.
+ *
+ * The IWDG cannot be stopped once BOOT has started it; installing a new
+ * timeout re-writes PR/RLR via the key access sequence, which the F7
+ * hardware supports.
+ *
+ * @return true on success.
+ */
 bool app_wdt_init(void)
 {
 	if (!device_is_ready(wdt)) {
