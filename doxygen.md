@@ -33,8 +33,8 @@ One commit per file: add/extend Doxygen-style documentation, mark it `done`, com
 | 24 | src/main.c | done |
 | 25 | src/reset_cause.c | done |
 | 26 | src/reset_cause.h | done |
-| 27 | src/uart_hwlink.c | pending |
-| 28 | src/uart_hwlink.h | pending |
+| 27 | src/uart_hwlink.c | done |
+| 28 | src/uart_hwlink.h | done |
 | 29 | src/zdemo.h | pending |
 | 30 | src/zdemo_threads.h | pending |
 
