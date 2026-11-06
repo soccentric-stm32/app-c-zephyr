@@ -20,7 +20,7 @@ One commit per file: add/extend Doxygen-style documentation, mark it `done`, com
 | 11 | src/flatcc_port.h | done |
 | 12 | src/handover.c | done |
 | 13 | src/handover.h | done |
-| 14 | src/health.c | pending |
+| 14 | src/health.c | done |
 | 15 | src/health.h | pending |
 | 16 | src/hwlink.c | pending |
 | 17 | src/hwlink.h | pending |
