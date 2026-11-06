@@ -6,10 +6,9 @@ One commit per file: add/extend Doxygen-style documentation, mark it `done`, com
 
 | # | File | Status |
 |---|------|--------|
-| 1 |  pending | pending |
+| 1 | src/app_fault.h | done |
 | 2 | src/boot_contract.h | done |
 | 3 | src/button.c | done |
-| 1 | src/app_fault.h | done |
 | 4 | src/button.h | done |
 | 5 | src/comms.c | done |
 | 6 | src/comms.h | done |
@@ -35,8 +34,8 @@ One commit per file: add/extend Doxygen-style documentation, mark it `done`, com
 | 26 | src/reset_cause.h | done |
 | 27 | src/uart_hwlink.c | done |
 | 28 | src/uart_hwlink.h | done |
-| 29 | src/zdemo.h | pending |
-| 30 | src/zdemo_threads.h | pending |
+| 29 | src/zdemo.h | done |
+| 30 | src/zdemo_threads.h | done |
 
 ## Out of scope (not modified)
 
