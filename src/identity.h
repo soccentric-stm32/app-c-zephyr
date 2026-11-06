@@ -14,23 +14,50 @@
 #include <stddef.h>
 #include <stdint.h>
 
-/* Reload and validate the record from the identity sector. */
+/**
+ * @brief Reload and validate the PRV1 record from the identity sector.
+ *
+ * Tries the physical bank-2 address, then the swapped-in alias.
+ *
+ * @return true if a valid UID-bound record was found.
+ */
 bool app_identity_refresh(void);
 
-/* True when a valid, UID-bound record is present. */
+/**
+ * @brief Check whether a valid, UID-bound identity record is present.
+ *
+ * Triggers a lazy first load if none has occurred yet.
+ *
+ * @return true if identity is available.
+ */
 bool app_identity_valid(void);
 
-/* Identity fields; empty strings when no record is present. */
+/** @brief Device serial number; empty string when no record present. */
 const char *app_identity_serial(void);
+/** @brief Product name; empty string when no record present. */
 const char *app_identity_product(void);
+/** @brief Hardware revision string; empty string when absent. */
 const char *app_identity_hw_revision(void);
+/** @brief Provisioning profile; empty string when absent. */
 const char *app_identity_profile(void);
+/** @brief Record revision; 0 when absent. */
 uint16_t app_identity_revision(void);
 
-/* Copy the provisioned EUI-48.  False when it is absent. */
+/**
+ * @brief Copy the provisioned EUI-48 (6-byte MAC) into the caller buffer.
+ *
+ * @param mac Destination buffer of at least 6 bytes.
+ * @return true on success, false when the MAC is absent.
+ */
 bool app_identity_mac(uint8_t mac[6]);
 
-/* Compact key=value detail for HelloReply (A-05 compatible). */
+/**
+ * @brief Render a compact key=value detail line for HelloReply (A-05).
+ *
+ * @param out      Destination buffer.
+ * @param capacity Size of the destination buffer.
+ * @return true if identity was rendered, false otherwise.
+ */
 bool app_identity_detail(char *out, size_t capacity);
 
 #endif /* IDENTITY_H */
