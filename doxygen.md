@@ -21,9 +21,9 @@ One commit per file: add/extend Doxygen-style documentation, mark it `done`, com
 | 12 | src/handover.c | done |
 | 13 | src/handover.h | done |
 | 14 | src/health.c | done |
-| 15 | src/health.h | pending |
-| 16 | src/hwlink.c | pending |
-| 17 | src/hwlink.h | pending |
+| 15 | src/health.h | done |
+| 16 | src/hwlink.c | done |
+| 17 | src/hwlink.h | done |
 | 18 | src/identity.c | pending |
 | 19 | src/identity.h | pending |
 | 20 | src/iwdg.c | pending |
