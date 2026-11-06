@@ -30,9 +30,9 @@ One commit per file: add/extend Doxygen-style documentation, mark it `done`, com
 | 21 | src/iwdg.h | done |
 | 22 | src/led.c | done |
 | 23 | src/led.h | done |
-| 24 | src/main.c | pending |
-| 25 | src/reset_cause.c | pending |
-| 26 | src/reset_cause.h | pending |
+| 24 | src/main.c | done |
+| 25 | src/reset_cause.c | done |
+| 26 | src/reset_cause.h | done |
 | 27 | src/uart_hwlink.c | pending |
 | 28 | src/uart_hwlink.h | pending |
 | 29 | src/zdemo.h | pending |
