@@ -22,6 +22,46 @@ The NUCLEO-F767ZI demo application in C on Zephyr RTOS. It runs under the A/B bo
 - Produces a ready-to-flash bootloader image (`zephyr-app.img`)
 - Reproducible Docker build environment with Zephyr and the Zephyr SDK
 
+## Project layout
+
+The source tree is grouped by responsibility so each module has one reason to
+change and dependencies point in one direction: `main` wires the application,
+board code owns the pins, comms owns the wire protocol, boot owns the
+bootloader contract, and system owns supervision and diagnostics.
+
+```text
+.
+├── boards/                    Board-specific devicetree overlay
+├── ci/                        Release and packaging helpers
+├── docker/                    Pinned Zephyr build environment
+├── docs/                      Requirements and documentation status
+├── protocol/                  HWLINK FlatBuffers schema (single source of truth)
+├── scripts/                   Build, flash, serial and image tools
+├── src/
+│   ├── main.c                 Entry point and start-up sequence
+│   ├── app/                   Shared configuration and thread handles
+│   ├── board/                 LED and button drivers
+│   ├── boot/                  Boot contract, hand-over, identity, confirmation
+│   ├── comms/                 HWLINK framing, UART transport, flatcc port
+│   ├── generated/             Committed flatcc output (do not edit)
+│   └── system/                Health, watchdog, faults and reset cause
+├── third_party/flatcc/        Vendored FlatCC runtime
+├── CMakeLists.txt             Freestanding Zephyr build
+├── Kconfig                    Application Kconfig options
+├── prj.conf                   Zephyr configuration
+└── Makefile                   Build, flash and debug shortcuts
+```
+
+Headers are included with a module prefix, for example
+`#include "comms/hwlink.h"`, so dependencies are visible at the call site.
+
+## Documentation
+
+- [Software Requirements Specification](docs/SRS.md)
+- [Doxygen documentation status](docs/DOXYGEN.md)
+- [HWLINK protocol schema](protocol/README.md)
+- [Docker development environment](docker/README.md)
+
 ## Build and run
 
 ```bash

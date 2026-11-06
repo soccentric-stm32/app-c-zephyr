@@ -19,9 +19,9 @@
 #include <zephyr/kernel.h>
 #include <zephyr/sys/ring_buffer.h>
 
-#include "hwlink.h"
-#include "uart_hwlink.h"
-#include "zdemo.h"
+#include "app/zdemo.h"
+#include "comms/hwlink.h"
+#include "comms/uart_hwlink.h"
 
 /* Size of the software receive ring buffer, in bytes. */
 #define UART_RX_RING_SIZE 4096U

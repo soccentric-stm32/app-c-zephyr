@@ -12,7 +12,7 @@
  */
 
 #include <string.h>
-#include "flatcc_port.h"
+#include "comms/flatcc_port.h"
 
 /* Total arena size in bytes; override at build time to resize. */
 #ifndef APP_FLATCC_HEAP_SIZE

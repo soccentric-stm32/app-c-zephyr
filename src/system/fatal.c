@@ -20,7 +20,7 @@
 #include <zephyr/linker/sections.h>
 #include <zephyr/sys/reboot.h>
 
-#include "app_fault.h"
+#include "system/app_fault.h"
 
 /** Persistent no-init fault record (declared in app_fault.h). */
 app_fault_record_t g_app_fault __noinit;

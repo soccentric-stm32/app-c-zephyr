@@ -13,15 +13,15 @@
 
 #include <zephyr/kernel.h>
 
-#include "app_fault.h"
-#include "comms.h"
-#include "flash_confirm.h"
-#include "handover.h"
-#include "health.h"
-#include "iwdg.h"
-#include "led.h"
-#include "zdemo.h"
-#include "zdemo_threads.h"
+#include "app/zdemo.h"
+#include "app/zdemo_threads.h"
+#include "board/led.h"
+#include "boot/flash_confirm.h"
+#include "boot/handover.h"
+#include "comms/comms.h"
+#include "system/app_fault.h"
+#include "system/health.h"
+#include "system/iwdg.h"
 
 /* Maximum time between comms loop iterations while waiting for events. */
 #define HEALTH_LOOP_MS            20U

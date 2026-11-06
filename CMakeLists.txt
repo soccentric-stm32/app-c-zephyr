@@ -13,7 +13,7 @@
 cmake_minimum_required(VERSION 3.20.0)
 
 set(BOARD nucleo_f767zi)
-set(DTC_OVERLAY_FILE "${CMAKE_CURRENT_SOURCE_DIR}/app.overlay")
+set(DTC_OVERLAY_FILE "${CMAKE_CURRENT_SOURCE_DIR}/boards/nucleo_f767zi.overlay")
 
 # --- Version and build metadata (ZGEN-002) ---------------------------------
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" VERSION_LINES)
@@ -83,7 +83,7 @@ target_compile_definitions(app PRIVATE
 # The generated flatcc headers and runtime see the fixed-arena allocator
 # through this force-include (ZRT-004).
 target_compile_options(app PRIVATE
-    -include "${CMAKE_CURRENT_SOURCE_DIR}/src/flatcc_port.h")
+    -include "${CMAKE_CURRENT_SOURCE_DIR}/src/comms/flatcc_port.h")
 
 target_include_directories(app PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/src"
@@ -93,24 +93,33 @@ target_include_directories(app PRIVATE
 
 # The generated flatcc headers use compact macro formatting that trips
 # -Wmisleading-indentation in the one translation unit that includes them.
-set_source_files_properties(src/comms.c PROPERTIES
+set_source_files_properties(src/comms/comms.c PROPERTIES
     COMPILE_OPTIONS "-Wno-misleading-indentation")
 
 target_sources(app PRIVATE
+    # Application entry point and shared configuration
     src/main.c
-    src/fatal.c
-    src/iwdg.c
-    src/handover.c
-    src/reset_cause.c
-    src/flash_confirm.c
-    src/identity.c
-    src/uart_hwlink.c
-    src/hwlink.c
-    src/flatcc_port.c
-    src/led.c
-    src/button.c
-    src/health.c
-    src/comms.c)
+
+    # Board-level I/O
+    src/board/button.c
+    src/board/led.c
+
+    # Bootloader contract and metadata
+    src/boot/flash_confirm.c
+    src/boot/handover.c
+    src/boot/identity.c
+
+    # HWLINK communication stack
+    src/comms/comms.c
+    src/comms/flatcc_port.c
+    src/comms/hwlink.c
+    src/comms/uart_hwlink.c
+
+    # System services and supervision
+    src/system/fatal.c
+    src/system/health.c
+    src/system/iwdg.c
+    src/system/reset_cause.c)
 
 # flatcc 0.6.1 runtime as released.  Only builder, verifier and emitter are
 # linked; JSON support is not used.

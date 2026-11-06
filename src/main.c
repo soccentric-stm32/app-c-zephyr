@@ -15,14 +15,14 @@
 #include <soc.h>
 #include <zephyr/kernel.h>
 
-#include "app_fault.h"
-#include "handover.h"
-#include "health.h"
-#include "iwdg.h"
-#include "led.h"
-#include "reset_cause.h"
-#include "uart_hwlink.h"
-#include "zdemo.h"
+#include "app/zdemo.h"
+#include "board/led.h"
+#include "boot/handover.h"
+#include "comms/uart_hwlink.h"
+#include "system/app_fault.h"
+#include "system/health.h"
+#include "system/iwdg.h"
+#include "system/reset_cause.h"
 
 BUILD_ASSERT(CONFIG_FLASH_LOAD_OFFSET == 0xC000,
 	     "ZBT-001: the application must be linked at 0x0800C000");

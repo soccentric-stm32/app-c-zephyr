@@ -15,11 +15,11 @@
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/kernel.h>
 
-#include "button.h"
-#include "health.h"
-#include "led.h"
-#include "zdemo.h"
-#include "zdemo_threads.h"
+#include "app/zdemo.h"
+#include "app/zdemo_threads.h"
+#include "board/button.h"
+#include "board/led.h"
+#include "system/health.h"
 
 /* Debounce window a raw level must hold before it counts as a change. */
 #define BUTTON_DEBOUNCE_MS  30U

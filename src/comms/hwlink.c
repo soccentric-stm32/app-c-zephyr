@@ -13,7 +13,7 @@
 
 #include <string.h>
 #include <zephyr/sys/crc.h>
-#include "hwlink.h"
+#include "comms/hwlink.h"
 
 /* Size of the HWLINK raw header: proto[1] flags[1] seq[2]. */
 #define HWLINK_HEADER_SIZE   4U

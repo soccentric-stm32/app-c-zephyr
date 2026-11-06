@@ -19,20 +19,20 @@
 #include <zephyr/sys/reboot.h>
 #include <zephyr/version.h>
 
-#include "app_fault.h"
-#include "boot_contract.h"
-#include "comms.h"
+#include "app/zdemo.h"
+#include "board/led.h"
+#include "boot/boot_contract.h"
+#include "boot/handover.h"
+#include "boot/identity.h"
+#include "comms/comms.h"
+#include "comms/hwlink.h"
+#include "comms/uart_hwlink.h"
 #include "flatcc/flatcc_builder.h"
-#include "handover.h"
-#include "health.h"
-#include "identity.h"
-#include "hwlink.h"
 #include "hwlink_builder.h"
 #include "hwlink_verifier.h"
-#include "led.h"
-#include "reset_cause.h"
-#include "uart_hwlink.h"
-#include "zdemo.h"
+#include "system/app_fault.h"
+#include "system/health.h"
+#include "system/reset_cause.h"
 
 /* Number of events the comms work queue can hold. */
 #define COMMS_EVENT_QUEUE_LEN 8U

@@ -9,7 +9,7 @@
 
 #include <zephyr/drivers/hwinfo.h>
 
-#include "reset_cause.h"
+#include "system/reset_cause.h"
 
 /**
  * @brief Raw reset-cause flags captured via the hwinfo API (RESET_* bits).

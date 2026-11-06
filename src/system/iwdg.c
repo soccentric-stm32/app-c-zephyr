@@ -18,7 +18,7 @@
 #include <zephyr/init.h>
 #include <zephyr/kernel.h>
 
-#include "iwdg.h"
+#include "system/iwdg.h"
 
 /* IWDG timeout used by this firmware (BOOT sets the same 4 s window). */
 #define APP_WDT_TIMEOUT_MS 4000U
@@ -41,6 +41,9 @@ static int app_wdt_early_feed(void)
 	IWDG->KR = 0x0000AAAAUL;
 	return 0;
 }
+
+/* Keep the IWDG alive before drivers and the scheduler are available. */
+SYS_INIT(app_wdt_early_feed, PRE_KERNEL_1, 0);
 
 /**
  * @brief Feed the watchdog through the Zephyr driver.

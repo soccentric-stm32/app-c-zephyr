@@ -17,8 +17,8 @@
 #include <zephyr/storage/flash_map.h>
 #include <zephyr/sys/crc.h>
 
-#include "boot_contract.h"
-#include "flash_confirm.h"
+#include "boot/boot_contract.h"
+#include "boot/flash_confirm.h"
 
 /* Number of 32-bit words in one 32-byte CONFIRMED record. */
 #define CONFIRMED_WORDS (APP_META_RECORD_SIZE / 4U)

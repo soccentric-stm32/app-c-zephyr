@@ -14,8 +14,8 @@
 #include <soc.h>
 #include <zephyr/kernel.h>
 
-#include "boot_contract.h"
-#include "handover.h"
+#include "boot/boot_contract.h"
+#include "boot/handover.h"
 
 /** Boot hand-over state decoded from RTC_BKP2R (see handover.h). */
 app_handover_t g_handover;

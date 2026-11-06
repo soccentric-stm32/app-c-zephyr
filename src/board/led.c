@@ -15,11 +15,11 @@
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/kernel.h>
 
-#include "comms.h"
-#include "health.h"
-#include "led.h"
-#include "zdemo.h"
-#include "zdemo_threads.h"
+#include "app/zdemo.h"
+#include "app/zdemo_threads.h"
+#include "board/led.h"
+#include "comms/comms.h"
+#include "system/health.h"
 
 /* Maximum number of LED messages queued. */
 #define LED_QUEUE_LENGTH 8U

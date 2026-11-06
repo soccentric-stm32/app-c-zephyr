@@ -235,7 +235,7 @@ ZDEMO shall meet [BOOT] §11 APP-001…APP-007, as [DEMO] DBT-001…DBT-006:
 
 | ID | Item | Status |
 |---|---|---|
-| OPEN-Z01 | Confirm `CONFIG_FLASH_LOAD_OFFSET` places the image correctly with the board's flash node in dual-bank mode, and add a devicetree partition for the metadata sector (ZBT-006). | Closed: `app.overlay` defines `app_meta_partition` and the slot; bench check of the offset remains part of CL-010. |
+| OPEN-Z01 | Confirm `CONFIG_FLASH_LOAD_OFFSET` places the image correctly with the board's flash node in dual-bank mode, and add a devicetree partition for the metadata sector (ZBT-006). | Closed: `boards/nucleo_f767zi.overlay` defines `app_meta_partition` and the slot; bench check of the offset remains part of CL-010. |
 | OPEN-Z02 | Zephyr's IWDG driver installs the timeout itself; check that it works when BOOT has already started the IWDG (`CONFIG_WDT_DISABLE_AT_BOOT` cannot stop an IWDG). | Open |
 | OPEN-Z03 | Decide between flatcc as an out-of-tree Zephyr module or a plain library in this repository. | Closed: flatcc is a plain vendored library under `third_party/`. |
 | OPEN-Z04 | v4.4.2 is pinned (first release on Zephyr SDK 1.0; v4.5.0 was released 2026-10-28). Decide the update policy: follow each release, or stay on one line until the next LTS. | Open |

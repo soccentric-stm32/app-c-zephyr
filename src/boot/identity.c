@@ -16,7 +16,7 @@
 #include <string.h>
 #include <soc.h>
 #include <zephyr/sys/crc.h>
-#include "identity.h"
+#include "boot/identity.h"
 
 /** PRV1 record magic ('PRV1' little-endian). */
 #define ID_MAGIC              0x31565250UL  /* "PRV1" little-endian */
