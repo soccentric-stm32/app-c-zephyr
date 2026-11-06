@@ -4,7 +4,7 @@
  * Author:  Sandesh Ghimire <sandesh@soccentric.com>
  * Date:    2026-11-03
  * Target:  NUCLEO-F767ZI
- * SRS:     ZBT-001, ZBT-006, ZSAFE-001/003
+ * SRS:     ZBT-001, ZBT-006, ZSAFE-001/003, ZDBG-001
  *
  * The board devicetree describes an MCUboot-style layout.  ZDEMO uses the
  * project bootloader layout instead (SRS-BOOT-F767 section 3):
@@ -47,16 +47,28 @@
 	};
 };
 
-/* ZSAFE-003: only the LEDs, B1 and USART3 are used. */
+/* ZDBG-001: console and log output on USART6 (PG14 = Arduino D1 TX,
+ * PG9 = D0 RX), 115200 8N1.  HWLINK keeps USART3 to itself. */
+/ {
+	chosen {
+		zephyr,console = &usart6;
+	};
+};
+
+&usart6 {
+	pinctrl-0 = <&usart6_tx_pg14 &usart6_rx_pg9>;
+	pinctrl-names = "default";
+	current-speed = <115200>;
+	status = "okay";
+};
+
+/* ZSAFE-003: only the LEDs, B1, USART3 (HWLINK) and USART6 (debug) are
+ * used. */
 &usart1 {
 	status = "disabled";
 };
 
 &usart2 {
-	status = "disabled";
-};
-
-&usart6 {
 	status = "disabled";
 };
 

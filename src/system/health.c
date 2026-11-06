@@ -12,6 +12,7 @@
  */
 
 #include <zephyr/kernel.h>
+#include <zephyr/logging/log.h>
 
 #include "app/zdemo.h"
 #include "app/zdemo_threads.h"
@@ -22,6 +23,8 @@
 #include "system/app_fault.h"
 #include "system/health.h"
 #include "system/iwdg.h"
+
+LOG_MODULE_DECLARE(app);
 
 /* Maximum time between comms loop iterations while waiting for events. */
 #define HEALTH_LOOP_MS            20U
@@ -239,11 +242,14 @@ static void health_thread(void *p1, void *p2, void *p3)
 					 * store, so Comms never sees a torn value. */
 					g_handover.trial = 1U;
 					health_check_pass();
+					LOG_INF("health: passed, CONFIRMED written");
 				} else {
 					health_check_fail();
+					LOG_ERR("health: CONFIRMED record write failed");
 				}
 			} else if ((now - start_time) >= HEALTH_STOP_KICK_MS) {
 				health_check_fail();
+				LOG_ERR("health: conditions not met, trial fails");
 			}
 		}
 

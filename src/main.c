@@ -14,15 +14,19 @@
 
 #include <soc.h>
 #include <zephyr/kernel.h>
+#include <zephyr/logging/log.h>
 
 #include "app/zdemo.h"
 #include "board/led.h"
+#include "boot/boot_contract.h"
 #include "boot/handover.h"
 #include "comms/uart_hwlink.h"
 #include "system/app_fault.h"
 #include "system/health.h"
 #include "system/iwdg.h"
 #include "system/reset_cause.h"
+
+LOG_MODULE_DECLARE(app);
 
 BUILD_ASSERT(CONFIG_FLASH_LOAD_OFFSET == 0xC000,
 	     "ZBT-001: the application must be linked at 0x0800C000");
@@ -71,6 +75,15 @@ int main(void)
 	/* ZBT-004: decode the hand-over record before Health starts. */
 	app_handover_read();
 
+	/* ZDBG-001: start-up line on the debug UART. */
+	LOG_INF("start v%s %s, slot %c %s, reset %s", APP_VERSION_STR,
+		APP_GIT_COMMIT,
+		g_handover.slot == APP_SLOT_A ? 'A' :
+		g_handover.slot == APP_SLOT_B ? 'B' : '?',
+		g_handover.trial == 2U ? "on trial" :
+		g_handover.trial == 1U ? "confirmed" : "no hand-over",
+		app_reset_cause_text);
+
 	/* ZBT-001/ZBT-002: the vector table must be the image's own table. */
 	if (SCB->VTOR != (0x08000000UL + CONFIG_FLASH_LOAD_OFFSET)) {
 		k_panic();
@@ -81,6 +94,7 @@ int main(void)
 	/* LED-005: latch LD3 for the last fault or watchdog reset. */
 	if (app_fault_is_valid()) {
 		(void)led_post_error(APP_ERROR_FAULT);
+		LOG_WRN("last fault recorded before this reset");
 	}
 	if (app_reset_was_error()) {
 		(void)led_post_error(APP_ERROR_WATCHDOG);

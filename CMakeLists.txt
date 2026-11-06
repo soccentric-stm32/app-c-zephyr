@@ -116,6 +116,7 @@ target_sources(app PRIVATE
     src/comms/uart_hwlink.c
 
     # System services and supervision
+    src/system/debug_log.c
     src/system/fatal.c
     src/system/health.c
     src/system/iwdg.c

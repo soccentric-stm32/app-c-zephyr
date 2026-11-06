@@ -14,12 +14,15 @@
 #include <zephyr/device.h>
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/kernel.h>
+#include <zephyr/logging/log.h>
 
 #include "app/zdemo.h"
 #include "app/zdemo_threads.h"
 #include "board/led.h"
 #include "comms/comms.h"
 #include "system/health.h"
+
+LOG_MODULE_DECLARE(app);
 
 /* Maximum number of LED messages queued. */
 #define LED_QUEUE_LENGTH 8U
@@ -364,6 +367,7 @@ static void handle_message(led_cfg_t cfg[3], const led_msg_t *msg,
 
 	case LED_MSG_BUTTON:
 		if (msg->press == 2U) {   /* long: restore defaults */
+			LOG_INF("button: long press, default LED patterns");
 			cfg[0].pattern = APP_PATTERN_HEARTBEAT;
 			cfg[0].period = APP_LED_DEFAULT_PERIOD;
 			cfg[0].start = now;
@@ -380,6 +384,8 @@ static void handle_message(led_cfg_t cfg[3], const led_msg_t *msg,
 				period = APP_LED_DEFAULT_PERIOD;
 			}
 			uint8_t pattern = (uint8_t)next_pattern(cfg[0].pattern);
+
+			LOG_INF("button: short press, LED pattern %u", pattern);
 
 			apply_set(cfg, APP_LED_ID_1, pattern, period, now);
 			cfg[1].pattern = pattern;

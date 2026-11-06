@@ -18,6 +18,8 @@
 #include <zephyr/kernel.h>
 #include <zephyr/sys/reboot.h>
 #include <zephyr/version.h>
+#include <zephyr/logging/log.h>
+#include <zephyr/logging/log_ctrl.h>
 
 #include "app/zdemo.h"
 #include "board/led.h"
@@ -33,6 +35,8 @@
 #include "system/app_fault.h"
 #include "system/health.h"
 #include "system/reset_cause.h"
+
+LOG_MODULE_DECLARE(app);
 
 /* Number of events the comms work queue can hold. */
 #define COMMS_EVENT_QUEUE_LEN 8U
@@ -769,6 +773,8 @@ static void handle_payload(uint16_t seq, const uint8_t *payload, size_t len)
 
 	case hwlink_Body_EnterBootloader:
 		if (send_ack(seq)) {
+			LOG_INF("HWLINK: EnterBootloader, resetting into BOOT");
+			LOG_PANIC();   /* flush: the reset would drop queued lines */
 			app_handover_request_bootloader();
 			sys_reboot(SYS_REBOOT_COLD);
 		}
@@ -776,6 +782,8 @@ static void handle_payload(uint16_t seq, const uint8_t *payload, size_t len)
 
 	case hwlink_Body_Reset:
 		if (send_ack(seq)) {
+			LOG_INF("HWLINK: Reset");
+			LOG_PANIC();
 			sys_reboot(SYS_REBOOT_COLD);
 		}
 		break;

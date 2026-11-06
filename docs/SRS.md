@@ -105,7 +105,7 @@ GUI tells the three demos apart by the `HelloReply` name and version.
 | ZCON-002 | The Zephyr version, module set and SDK version shall be pinned in the image (build arguments) and reported in the build output. Zephyr and its modules shall be used unmodified; board changes shall be made with devicetree overlays and Kconfig in this repository. |
 | ZCON-003 | ZDEMO shall be a freestanding application (`find_package(Zephyr)` against `$ZEPHYR_BASE`) built with CMake + Ninja; west is not needed to build. |
 | ZCON-004 | ZDEMO shall run only under BOOT, linked at `0x0800 C000` ([BOOT] LAY-002). |
-| ZCON-005 | ZDEMO shall use USART3 (PD8/PD9, the board's `zephyr,console` UART) for HWLINK and shall disable the Zephyr console, shell and logging backends on that UART. |
+| ZCON-005 | ZDEMO shall use USART3 (PD8/PD9) for HWLINK only. The Zephyr console and logging shall use USART6 instead (ZDBG-001), never USART3; no shell. |
 | ZCON-006 | ZDEMO shall never reconfigure PA13/PA14 (SWD) or PH0/PH1 (HSE). |
 
 ### 2.3 Assumptions
@@ -187,7 +187,7 @@ ZDEMO shall meet [BOOT] §11 APP-001…APP-007, as [DEMO] DBT-001…DBT-006:
 |---|---|---|
 | ZSAFE-001 | ZDEMO shall never unlock or write option bytes; the flash partition used for `CONFIRMED` shall cover only the running slot's metadata sector. | I |
 | ZSAFE-002 | The confirm function shall accept only the `CONFIRMED` record address (as [DEMO] DSAFE-002). | I, T |
-| ZSAFE-003 | ZDEMO shall drive only PB0, PB7, PB14, read PC13 and use PD8/PD9 (as [DEMO] DSAFE-003); unused devicetree peripherals of the board (Ethernet, USB, other UARTs) shall be disabled in the overlay. | I |
+| ZSAFE-003 | ZDEMO shall drive only PB0, PB7, PB14, read PC13 and use PD8/PD9 and PG14/PG9 (USART6 debug, ZDBG-001) (as [DEMO] DSAFE-003); unused devicetree peripherals of the board (Ethernet, USB, other UARTs) shall be disabled in the overlay. | I |
 | ZSAFE-004 | `CONFIG_ASSERT` shall be on in debug builds; release builds shall keep stack protection and the fatal error handler. | I |
 
 ---
@@ -201,6 +201,18 @@ ZDEMO shall meet [BOOT] §11 APP-001…APP-007, as [DEMO] DBT-001…DBT-006:
 | ZNFR-003 | **Reliability:** as [DEMO] DNFR-003 (24 h with the GUI polling every 100 ms). | T |
 | ZNFR-004 | **Comparison:** contributes the Zephyr column to the C / Rust / Zephyr comparison report ([RDEMO] RNFR-004). | A |
 | ZNFR-005 | **Template:** a README shall explain how to start a new Zephyr application from ZDEMO. | I |
+
+### Debug output (USART6)
+
+USART3 carries HWLINK only.  Zephyr's console and log output go to USART6
+(`zephyr,console = &usart6`; TX PG14 = Arduino D1, RX PG9 = D0), 115200
+8N1, in the format BOOT uses: `[<ms>] <TAG> <E|W|I|D> <text>` (milliseconds since reset, right-aligned to 7 digits, CR LF), tag `C-ZEP`.  The application logs with Zephyr's `LOG_INF`/`LOG_WRN`/`LOG_ERR` in the `app` log module.
+
+| ID | Requirement | Method |
+|---|---|---|
+| ZDBG-001 | ZDEMO shall log start (version, commit, slot, trial state, reset cause), a recorded fault, the health verdict, button presses and HWLINK-requested resets. | D |
+| ZDBG-002 | Logging shall be deferred (`CONFIG_LOG_MODE_DEFERRED`), so no application thread waits on the debug UART; before a deliberate reboot the log shall be flushed (`LOG_PANIC`). | I |
+| ZDBG-003 | A custom formatter (`CONFIG_LOG_CUSTOM_FORMAT_SUPPORT`) shall print the family line format; `printk()` output shall pass through unchanged. | I |
 
 ---
 
