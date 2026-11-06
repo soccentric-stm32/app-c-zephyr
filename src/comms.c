@@ -34,18 +34,33 @@
 #include "uart_hwlink.h"
 #include "zdemo.h"
 
+/* Number of events the comms work queue can hold. */
 #define COMMS_EVENT_QUEUE_LEN 8U
+/* Maximum time the comms thread sleeps waiting for work. */
 #define COMMS_LOOP_MS         10U
+/* Interval between comms-thread check-ins to the health monitor. */
 #define COMMS_CHECKIN_MS      500U
+/* Per-transmission UART send timeout. */
 #define COMMS_TX_TIMEOUT_MS   200U
+/* Idle time after which a non-default baud rate reverts to the default. */
 #define COMMS_BAUD_REVERT_MS  5000U
+/* Maximum number of threads reported in a Status message. */
 #define COMMS_MAX_TASKS       12U
 
+/**
+ * @brief Types of work items delivered to the comms thread.
+ */
 typedef enum {
-	COMMS_EVT_RX = 0,
-	COMMS_EVT_BUTTON
+	COMMS_EVT_RX = 0,	/** New data available on the USART RX ring. */
+	COMMS_EVT_BUTTON	/** Button press/released; report if link open. */
 } comms_event_type_t;
 
+/**
+ * @brief Work item carried in the comms message queue.
+ *
+ * Field meanings depend on @ref comms_event_type_t; unused fields may
+ * contain stale data.
+ */
 typedef struct {
 	uint8_t type;
 	uint8_t press;
@@ -53,30 +68,46 @@ typedef struct {
 	uint16_t period;
 } comms_event_t;
 
+/**
+ * @brief Shadow copy of LED state used when building Status responses.
+ */
 typedef struct {
 	uint8_t pattern;
 	uint16_t period;
 } led_mirror_t;
 
+/** Message queue between the RX ISR / button thread and the comms thread. */
 K_MSGQ_DEFINE(comms_msgq, sizeof(comms_event_t), COMMS_EVENT_QUEUE_LEN, 4);
 
+/** Fixed-arena FlatCC builder used for all outgoing messages. */
 static flatcc_builder_t builder;
 
-/* Frame assembly.  rx_enc is the COBS body without its delimiter. */
+/** Frame assembly.  rx_enc is the COBS body without its delimiter. */
+/** COBS-encoded receive body being accumulated (no delimiter yet). */
 static uint8_t rx_enc[HWLINK_MAX_ENCODED];
+/** Number of valid bytes in rx_enc. */
 static size_t rx_enc_len;
+/** True if the receive body exceeded the frame limit (drop until 0x00). */
 static bool rx_enc_overflow;
 
+/** Decoded (COBS-decoded, not yet deframed) receive buffer. */
 static uint8_t rx_raw[HWLINK_MAX_FRAME];
+/** Deframed FlatBuffer payload extracted from the last receive frame. */
 static uint8_t rx_payload[HWLINK_MAX_FRAME];
+/** Outgoing frame, built before COBS encoding. */
 static uint8_t raw_tx[HWLINK_MAX_FRAME];
 
-/* The last reply, kept as an unencoded frame for duplicate requests. */
+/** The last reply, kept as an unencoded frame for duplicate requests. */
+/** Last sent response frame, raw (unencoded) for duplicate re-sends. */
 static uint8_t last_response[HWLINK_MAX_FRAME];
+/** Length of last_response in bytes. */
 static size_t last_response_len;
+/** Sequence number of the last executed request. */
 static uint16_t last_request_seq;
+/** True if last_request_seq refers to an executed request. */
 static bool last_request_valid;
 
+/** COBS-encoded transmit buffer; aligned for the flash write path. */
 static uint8_t tx_frame[HWLINK_MAX_ENCODED] __aligned(32);
 
 static led_mirror_t led_mirror[3] = {
@@ -90,6 +121,12 @@ static bool baud_revert_pending;
 static uint32_t baud_last_valid;
 
 
+/**
+ * @brief Return the 64-bit device UID.
+ *
+ * Uses the same two UID words, in the same order, as the C demo's
+ * HAL_GetUIDw0()/HAL_GetUIDw1() expression.
+ */
 static uint64_t device_uid(void)
 {
 	/* Same two UID words, in the same order, as the C demo's
@@ -100,6 +137,12 @@ static uint64_t device_uid(void)
 	return ((uint64_t)word0 << 32U) | (uint64_t)word1;
 }
 
+/**
+ * @brief Return the DBGMCU part/revision IDCODE.
+ *
+ * DBGMCU is clocked from the debug domain on the F7 and is readable
+ * without an application clock gate.
+ */
 static uint32_t device_idcode(void)
 {
 	/* DBGMCU is clocked from the debug domain on the F7 and is readable
@@ -107,18 +150,34 @@ static uint32_t device_idcode(void)
 	return DBGMCU->IDCODE;
 }
 
+/**
+ * @brief Map the flash bank configuration to the HWLINK flash-mode enum.
+ */
 static hwlink_FlashMode_enum_t flash_mode(void)
 {
 	return (FLASH->OPTCR & FLASH_OPTCR_nDBANK) != 0U
 	       ? hwlink_FlashMode_SINGLE_BANK : hwlink_FlashMode_DUAL_BANK;
 }
 
+/**
+ * @brief Reset the receive parser state (discard the partial frame).
+ */
 static void reset_parser(void)
 {
 	rx_enc_len = 0U;
 	rx_enc_overflow = false;
 }
 
+/**
+ * @brief Build, optionally store, encode and transmit one raw frame.
+ *
+ * @param payload     FlatBuffer payload bytes.
+ * @param payload_len Length of payload in bytes.
+ * @param flags       Frame flags field.
+ * @param seq         Frame sequence number.
+ * @param store       If true, keep the raw frame for duplicate re-sends.
+ * @return true if the full transaction succeeded.
+ */
 static bool send_payload(const uint8_t *payload, size_t payload_len,
 			 uint8_t flags, uint16_t seq, bool store)
 {
@@ -141,6 +200,17 @@ static bool send_payload(const uint8_t *payload, size_t payload_len,
 				COMMS_TX_TIMEOUT_MS);
 }
 
+/**
+ * @brief Serialize a FlatBuffer body, then send it as a raw frame.
+ *
+ * The fixed builder arena is reset after the send completes.
+ *
+ * @param body   FlatBuffer body reference (already created).
+ * @param seq    Frame sequence number.
+ * @param flags  Frame flags field.
+ * @param store  If true, keep the raw frame for duplicate re-sends.
+ * @return true on success.
+ */
 static bool send_body(hwlink_Body_union_ref_t body, uint16_t seq,
 		      uint8_t flags, bool store)
 {
@@ -163,6 +233,12 @@ static bool send_body(hwlink_Body_union_ref_t body, uint16_t seq,
 	return ok;
 }
 
+/**
+ * @brief Send an Ack response for the given sequence number.
+ *
+ * @param seq Sequence number to echo.
+ * @return true if the Ack was sent.
+ */
 static bool send_ack(uint16_t seq)
 {
 	flatcc_builder_reset(&builder);
@@ -172,6 +248,15 @@ static bool send_ack(uint16_t seq)
 	       send_body(hwlink_Body_as_Ack(ack), seq, HWLINK_FLAG_RESPONSE, true);
 }
 
+/**
+ * @brief Send a Nak response with an error code and optional detail text.
+ *
+ * @param seq             Sequence number of the failed request.
+ * @param error           HWLINK error code.
+ * @param detail          Human-readable detail text (may be NULL).
+ * @param expected_offset Expected CRC offset, or 0 for none.
+ * @return true if the Nak was sent.
+ */
 static bool send_nak(uint16_t seq, hwlink_Error_enum_t error,
 		     const char *detail, uint32_t expected_offset)
 {
@@ -185,6 +270,12 @@ static bool send_nak(uint16_t seq, hwlink_Error_enum_t error,
 	       send_body(hwlink_Body_as_Nak(nak), seq, HWLINK_FLAG_RESPONSE, true);
 }
 
+/**
+ * @brief Send a Pong response carrying the current uptime.
+ *
+ * @param seq Sequence number to echo.
+ * @return true if the Pong was sent.
+ */
 static bool send_pong(uint16_t seq)
 {
 	flatcc_builder_reset(&builder);
@@ -196,6 +287,15 @@ static bool send_pong(uint16_t seq)
 			 true);
 }
 
+/**
+ * @brief Build and send the HelloReply identifying this firmware.
+ *
+ * Includes name, version, commit, build date, identity detail, UID,
+ * device/revision IDs, flash mode and protocol version.
+ *
+ * @param seq Request sequence number to echo.
+ * @return true if the HelloReply was sent.
+ */
 static bool send_hello_reply(uint16_t seq)
 {
 	flatcc_builder_reset(&builder);
@@ -228,6 +328,14 @@ static bool send_hello_reply(uint16_t seq)
 			 HWLINK_FLAG_RESPONSE, true);
 }
 
+/**
+ * @brief Map a Zephyr thread state string to the compact HWLINK code.
+ *
+ * Uses the same numbering as the FreeRTOS demo's eTaskState.
+ *
+ * @param thread Thread to inspect.
+ * @return 0 running, 1 ready, 2 blocked, 3 suspended, 4 deleted.
+ */
 static uint8_t thread_state_code(k_tid_t thread)
 {
 	char text[24];
@@ -254,6 +362,15 @@ static uint8_t thread_state_code(k_tid_t thread)
 	return 0U;
 }
 
+/**
+ * @brief Return the FreeRTOS-style stack high-water mark (min free space).
+ *
+ * The HWLINK field is the minimum remaining stack space in bytes, not
+ * the amount used. Returns 0 if the query fails.
+ *
+ * @param thread Thread to inspect.
+ * @return Minimum unused stack space in bytes (clamped to 16 bits).
+ */
 static unsigned int task_high_water(k_tid_t thread)
 {
 	size_t unused = 0U;
@@ -269,6 +386,9 @@ static unsigned int task_high_water(k_tid_t thread)
 	return (unsigned int)unused;
 }
 
+/**
+ * @brief Per-thread information reported in a Status message.
+ */
 struct task_info {
 	char name[CONFIG_THREAD_MAX_NAME_LEN];
 	uint8_t priority;
@@ -276,11 +396,20 @@ struct task_info {
 	uint16_t stack_high_water;
 };
 
+/**
+ * @brief Scratch collector for the k_thread_foreach callback results.
+ */
 struct task_collect {
 	struct task_info tasks[COMMS_MAX_TASKS];
 	uint32_t count;
 };
 
+/**
+ * @brief k_thread_foreach callback: append one thread's info to the collector.
+ *
+ * @param thread    Thread being visited.
+ * @param user_data Pointer to the collecting structure.
+ */
 static void collect_task(const struct k_thread *thread, void *user_data)
 {
 	struct task_collect *collect = user_data;
@@ -303,6 +432,12 @@ static void collect_task(const struct k_thread *thread, void *user_data)
 	collect->count++;
 }
 
+/**
+ * @brief Build and send a full Status response (tasks, LEDs, fault, heap).
+ *
+ * @param seq Request sequence number to echo.
+ * @return true if the Status message was sent.
+ */
 static bool send_status(uint16_t seq)
 {
 	struct task_collect collect = { 0 };
@@ -415,6 +550,14 @@ static bool send_status(uint16_t seq)
 			 HWLINK_FLAG_RESPONSE, true);
 }
 
+/**
+ * @brief Build and send a ButtonEvent message (EVENT flag, not stored).
+ *
+ * @param press   Press classification.
+ * @param pattern Current LED pattern.
+ * @param period  Current LED period in ms.
+ * @return true if the event was sent.
+ */
 static bool send_button_event(uint8_t press, uint8_t pattern, uint16_t period)
 {
 	flatcc_builder_reset(&builder);
@@ -427,17 +570,38 @@ static bool send_button_event(uint8_t press, uint8_t pattern, uint16_t period)
 			 HWLINK_FLAG_EVENT, false);
 }
 
+/**
+ * @brief Validate an LED blink period against the allowed range.
+ *
+ * @param period Period in ms; must be within range and a multiple of 10.
+ * @return true if valid.
+ */
 static bool period_valid(uint16_t period)
 {
 	return period >= APP_LED_MIN_PERIOD && period <= APP_LED_MAX_PERIOD &&
 	       (period % 10U) == 0U;
 }
 
+/**
+ * @brief Validate an LED pattern id.
+ *
+ * @param pattern Pattern id.
+ * @return true if the id is a known pattern.
+ */
 static bool pattern_valid(uint8_t pattern)
 {
 	return pattern < APP_PATTERN_COUNT;
 }
 
+/**
+ * @brief Update the LED state mirror so Status reflects the new command.
+ *
+ * Handles the CHASE special case spanning LED1/LED2 and the reserved LD3.
+ *
+ * @param led     LED id (1..3).
+ * @param pattern New pattern id.
+ * @param period  New period in ms.
+ */
 static void mirror_set(uint8_t led, uint8_t pattern, uint16_t period)
 {
 	if (led == APP_LED_ID_1 || led == APP_LED_ID_2) {
@@ -462,6 +626,12 @@ static void mirror_set(uint8_t led, uint8_t pattern, uint16_t period)
 	}
 }
 
+/**
+ * @brief Process a SetLed request: validate, apply, then ACK (or NAK).
+ *
+ * @param set Decoded SetLed table.
+ * @param seq Sequence number of the request.
+ */
 static void handle_set_led(const hwlink_SetLed_table_t set, uint16_t seq)
 {
 	uint8_t led = (uint8_t)hwlink_SetLed_led(set);
@@ -488,6 +658,12 @@ static void handle_set_led(const hwlink_SetLed_table_t set, uint16_t seq)
 	(void)send_ack(seq);
 }
 
+/**
+ * @brief Process a SetLedAll request: validate, apply to both user LEDs, ACK.
+ *
+ * @param set Decoded SetLedAll table.
+ * @param seq Sequence number of the request.
+ */
 static void handle_set_led_all(const hwlink_SetLedAll_table_t set, uint16_t seq)
 {
 	uint8_t pattern = (uint8_t)hwlink_SetLedAll_pattern(set);
@@ -513,6 +689,17 @@ static void handle_set_led_all(const hwlink_SetLedAll_table_t set, uint16_t seq)
 	(void)send_ack(seq);
 }
 
+/**
+ * @brief Verify, dispatch and respond to a decoded FlatBuffer message.
+ *
+ * Handles the DEMO request set (Hello, Ping, GetStatus, SetLed, SetLedAll,
+ * ClearFault, SetBaud, EnterBootloader, Reset); unsupported bodies get an
+ * UNSUPPORTED Nak.
+ *
+ * @param seq     Sequence number of the request.
+ * @param payload Deframed payload bytes.
+ * @param len     Payload length in bytes.
+ */
 static void handle_payload(uint16_t seq, const uint8_t *payload, size_t len)
 {
 	if (hwlink_Message_verify_as_root(payload, len) != flatcc_verify_ok) {
@@ -614,6 +801,15 @@ static void handle_payload(uint16_t seq, const uint8_t *payload, size_t len)
 	}
 }
 
+/**
+ * @brief Deframe one raw frame, drop bad CRCs, and dispatch the payload.
+ *
+ * Repeated requests (same sequence) re-send the previous response without
+ * re-executing. Response/event frames are ignored.
+ *
+ * @param raw     Raw frame bytes.
+ * @param raw_len Frame length in bytes.
+ */
 static void handle_raw(const uint8_t *raw, size_t raw_len)
 {
 	size_t payload_len = 0U;
@@ -649,6 +845,14 @@ static void handle_raw(const uint8_t *raw, size_t raw_len)
 	handle_payload(seq, rx_payload, payload_len);
 }
 
+/**
+ * @brief Feed one received byte into the COBS frame parser.
+ *
+ * A zero byte terminates the COBS body and triggers deframing; an
+ * oversized body is flagged and dropped until the next delimiter.
+ *
+ * @param byte Received byte.
+ */
 static void feed_byte(uint8_t byte)
 {
 	if (byte == 0U) {
@@ -668,6 +872,9 @@ static void feed_byte(uint8_t byte)
 	}
 }
 
+/**
+ * @brief Drain up to 32 x 64-byte chunks from the UART RX ring.
+ */
 static void poll_receive(void)
 {
 	uint8_t chunk[64];
@@ -684,6 +891,12 @@ static void poll_receive(void)
 	}
 }
 
+/**
+ * @brief Handle a button event: update the LED mirror and, if the link is
+ * open, send a ButtonEvent message.
+ *
+ * @param event Button event with press class, pattern and period.
+ */
 static void handle_button_event(const comms_event_t *event)
 {
 	if (event->press == 2U) {
@@ -705,6 +918,17 @@ static void handle_button_event(const comms_event_t *event)
 	}
 }
 
+/**
+ * @brief Main comms loop.
+ *
+ * Processes RX and button work items from the message queue, drains the
+ * UART ring, reverts a non-default baud rate after idle, and check-ins
+ * with the health monitor periodically.
+ *
+ * @param p1 Unused.
+ * @param p2 Unused.
+ * @param p3 Unused.
+ */
 static void comms_thread(void *p1, void *p2, void *p3)
 {
 	ARG_UNUSED(p1);
@@ -750,9 +974,13 @@ static void comms_thread(void *p1, void *p2, void *p3)
 	}
 }
 
+/* Comms thread: parse, verify, execute and reply over UART. */
 K_THREAD_DEFINE(zdemo_comms_thread, ZDEMO_COMMS_STACK, comms_thread, NULL,
 		NULL, NULL, ZDEMO_PRIO_COMMS, 0, 0);
 
+/**
+ * @brief Post an RX-available event to the comms thread (ISR-safe).
+ */
 void comms_post_rx_from_isr(void)
 {
 	comms_event_t event = { .type = COMMS_EVT_RX };
