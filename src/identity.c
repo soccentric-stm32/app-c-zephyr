@@ -18,23 +18,43 @@
 #include <zephyr/sys/crc.h>
 #include "identity.h"
 
+/** PRV1 record magic ('PRV1' little-endian). */
 #define ID_MAGIC              0x31565250UL  /* "PRV1" little-endian */
+/** Record format version we understand. */
 #define ID_FORMAT             1U
+/** Size of the fixed identity header, in bytes. */
 #define ID_HEADER_SIZE        32U
+/** Maximum TLV body we will scan, in bytes. */
 #define ID_MAX_TLV            4096U
 
+/** TLV type: device serial number. */
 #define ID_T_SERIAL           0x01U
+/** TLV type: product name. */
 #define ID_T_PRODUCT          0x02U
+/** TLV type: hardware revision. */
 #define ID_T_HW_REV           0x03U
+/** TLV type: manufacturing timestamp. */
 #define ID_T_MFG_TIME         0x04U
+/** TLV type: station/fixture identifier. */
 #define ID_T_STATION_FIXTURE  0x05U
+/** TLV type: provisioning profile. */
 #define ID_T_PROFILE          0x06U
+/** TLV type: firmware version at provisioning. */
 #define ID_T_FIRMWARE_VERSION 0x07U
+/** TLV type: MAC address (6 bytes). */
 #define ID_T_MAC              0x10U
 
+/** Physical address of the identity record in bank 2 sector 13. */
 #define ID_IDENTITY_A         0x08104000UL
+/** Same sector, as seen while bank 2 is swapped into the low alias. */
 #define ID_IDENTITY_SWAPPED   0x08004000UL
 
+/**
+ * @brief Fixed 32-byte PRV1 identity header.
+ *
+ * The header is CRC-32 protected (header_crc32) and bound to the chip
+ * UID (12 bytes) so a record copied to another chip is rejected.
+ */
 typedef struct {
     uint32_t magic;
     uint16_t format;
@@ -45,6 +65,9 @@ typedef struct {
     uint32_t header_crc32;
 } id_header_t;
 
+/**
+ * @brief Decoded, validated identity fields kept in RAM.
+ */
 typedef struct {
     bool valid;
     uint16_t revision;
@@ -56,14 +79,30 @@ typedef struct {
     bool mac_valid;
 } app_identity_t;
 
+/** Cached decode state; valid after a successful app_identity_refresh(). */
 static app_identity_t identity;
+/** True once app_identity_refresh() has run at least once. */
 static bool refreshed;
 
+/**
+ * @brief Compute the header CRC over the first 28 header bytes.
+ *
+ * @param raw Pointer to the 32-byte header.
+ * @return CRC-32/ISO-HDLC value.
+ */
 static uint32_t header_crc(const uint8_t *raw)
 {
     return crc32_ieee(raw, 28U);
 }
 
+/**
+ * @brief Copy a bounded-length text field and force NUL termination.
+ *
+ * @param out    Destination buffer.
+ * @param cap    Size of the destination buffer.
+ * @param data   Source bytes.
+ * @param length Number of source bytes to copy.
+ */
 static void copy_text(char *out, size_t cap, const uint8_t *data, uint8_t length)
 {
     size_t n = length;
@@ -74,6 +113,15 @@ static void copy_text(char *out, size_t cap, const uint8_t *data, uint8_t length
     out[n] = '\0';
 }
 
+/**
+ * @brief Validate and parse one PRV1 record at a fixed address.
+ *
+ * Checks magic, format, length range, header CRC, the chip UID binding
+ * and the TLV CRC, then decodes serial/product/hw-revision/profile/MAC.
+ *
+ * @param address Flash address of the record.
+ * @return true if a complete, valid identity was parsed.
+ */
 static bool parse_from(uint32_t address)
 {
     uint8_t raw[ID_HEADER_SIZE];
@@ -158,6 +206,13 @@ static bool parse_from(uint32_t address)
     return true;
 }
 
+/**
+ * @brief (Re)load the identity record from both candidate addresses.
+ *
+ * Tries the physical bank-2 address first, then the swapped-in alias.
+ *
+ * @return true if a valid identity was found.
+ */
 bool app_identity_refresh(void)
 {
     refreshed = true;
@@ -168,6 +223,11 @@ bool app_identity_refresh(void)
     return parse_from(ID_IDENTITY_SWAPPED);
 }
 
+/**
+ * @brief Ensure the identity has been loaded once; return its validity.
+ *
+ * @return true if a valid identity is cached.
+ */
 static bool ensure_loaded(void)
 {
     if (!refreshed) {
@@ -176,36 +236,70 @@ static bool ensure_loaded(void)
     return identity.valid;
 }
 
+/**
+ * @brief Check whether a valid identity record is present.
+ */
 bool app_identity_valid(void)
 {
     return ensure_loaded();
 }
 
+/**
+ * @brief Device serial number (empty string if no identity).
+ *
+ * @return NUL-terminated serial.
+ */
 const char *app_identity_serial(void)
 {
     return ensure_loaded() ? identity.serial : "";
 }
 
+/**
+ * @brief Product name (empty string if no identity).
+ *
+ * @return NUL-terminated product name.
+ */
 const char *app_identity_product(void)
 {
     return ensure_loaded() ? identity.product : "";
 }
 
+/**
+ * @brief Hardware revision string (empty string if no identity).
+ *
+ * @return NUL-terminated revision.
+ */
 const char *app_identity_hw_revision(void)
 {
     return ensure_loaded() ? identity.hw_revision : "";
 }
 
+/**
+ * @brief Provisioning profile string (empty string if no identity).
+ *
+ * @return NUL-terminated profile.
+ */
 const char *app_identity_profile(void)
 {
     return ensure_loaded() ? identity.profile : "";
 }
 
+/**
+ * @brief Record revision number.
+ *
+ * @return Revision, or 0 if no identity is present.
+ */
 uint16_t app_identity_revision(void)
 {
     return ensure_loaded() ? identity.revision : 0U;
 }
 
+/**
+ * @brief Copy the 6-byte factory MAC into the caller buffer.
+ *
+ * @param mac Destination buffer of at least 6 bytes.
+ * @return true on success, false if no MAC is recorded.
+ */
 bool app_identity_mac(uint8_t mac[6])
 {
     if (!ensure_loaded() || !identity.mac_valid) {
@@ -215,6 +309,15 @@ bool app_identity_mac(uint8_t mac[6])
     return true;
 }
 
+/**
+ * @brief Append a C string to an output buffer, NUL-safe.
+ *
+ * @param out   Output buffer.
+ * @param cap   Size of the output buffer.
+ * @param pos   Current position in out.
+ * @param text  String to append.
+ * @return New position (always NUL-terminates before returning).
+ */
 static size_t append_text(char *out, size_t cap, size_t pos, const char *text)
 {
     while (text != NULL && *text != '\0' && pos + 1U < cap) {
@@ -224,6 +327,15 @@ static size_t append_text(char *out, size_t cap, size_t pos, const char *text)
     return pos;
 }
 
+/**
+ * @brief Append an unsigned decimal number to an output buffer.
+ *
+ * @param out    Output buffer.
+ * @param cap    Size of the output buffer.
+ * @param pos    Current position in out.
+ * @param value  Value to append.
+ * @return New position (always NUL-terminates before returning).
+ */
 static size_t append_uint(char *out, size_t cap, size_t pos, unsigned value)
 {
     char digits[10];
@@ -239,6 +351,14 @@ static size_t append_uint(char *out, size_t cap, size_t pos, unsigned value)
     return pos;
 }
 
+/**
+ * @brief Append the cached MAC as colon-separated hex (XX:XX:XX:XX:XX:XX).
+ *
+ * @param out   Output buffer.
+ * @param cap   Size of the output buffer.
+ * @param pos   Current position in out.
+ * @return New position (always NUL-terminates before returning).
+ */
 static size_t append_mac(char *out, size_t cap, size_t pos)
 {
     static const char hex[] = "0123456789ABCDEF";
@@ -253,6 +373,17 @@ static size_t append_mac(char *out, size_t cap, size_t pos)
     return pos;
 }
 
+/**
+ * @brief Render the identity as a compact single-line summary.
+ *
+ * On success the output looks like: PRV1 serial=<s>;mac=<m>;hw=<h>;
+ * product=<p>;profile=<f>;revision=<n>
+ *
+ * @param out      Destination buffer.
+ * @param capacity Size of the destination buffer.
+ * @return true if an identity was available and rendered,
+ *         false on no identity (out contains "no identity").
+ */
 bool app_identity_detail(char *out, size_t capacity)
 {
     if (out == NULL || capacity == 0U) {
