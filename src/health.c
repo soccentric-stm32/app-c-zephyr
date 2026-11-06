@@ -23,28 +23,53 @@
 #include "zdemo.h"
 #include "zdemo_threads.h"
 
+/* Maximum time between comms loop iterations while waiting for events. */
 #define HEALTH_LOOP_MS            20U
+/* A task is considered dead if no check-in within this window. */
 #define HEALTH_CHECKIN_TIMEOUT_MS 2000U
+/* Time after boot at which the health check runs during a trial. */
 #define HEALTH_CHECK_AT_MS        5000U
+/* Time after boot after which a stuck check gives up and fails. */
 #define HEALTH_STOP_KICK_MS       10000U
+/* Maximum interval at which the watchdog is kicked. */
 #define HEALTH_REFRESH_MS         100U
+/* Minimum number of check-ins required before the check can pass. */
 #define HEALTH_MIN_CHECKINS       5U
 
+/** Event bit for the LED thread's regular check-in. */
 #define HEALTH_EVT_LED    BIT(HEALTH_TASK_LED)
+/** Event bit for the button thread's regular check-in. */
 #define HEALTH_EVT_BUTTON BIT(HEALTH_TASK_BUTTON)
+/** Event bit for the comms thread's regular check-in. */
 #define HEALTH_EVT_COMMS  BIT(HEALTH_TASK_COMMS)
+/** Bit mask of all supervised external tasks. */
 #define HEALTH_EVT_MASK   (HEALTH_EVT_LED | HEALTH_EVT_BUTTON | HEALTH_EVT_COMMS)
 
+/** Event object used to collect check-in bits from supervised threads. */
 K_EVENT_DEFINE(health_events);
 
+/** Per-task check-in counter (index HEALTH_TASK_COUNT = health itself). */
 static uint32_t checkin_count[HEALTH_TASK_COUNT + 1U];
+/** Per-task last check-in uptime (index HEALTH_TASK_COUNT = health itself). */
 static uint32_t last_seen[HEALTH_TASK_COUNT + 1U];
+/** Uptime at the start of the health thread. */
 static uint32_t start_time;
+/** Uptime of the last watchdog kick. */
 static uint32_t last_kick;
+/** Current health state (volatile; shared with readers). */
 static volatile uint8_t health_state = APP_HEALTH_NOT_REQUIRED;
+/** true once the one-shot health check has produced a verdict. */
 static bool check_done;
+/** true once a supervised task went silent. */
 static bool supervision_lost;
 
+/**
+ * @brief Posted by supervised threads at least once per second.
+ *
+ * Safe from any task context (it only posts to an event).
+ *
+ * @param task Identity of the checking thread.
+ */
 void health_checkin(health_task_id_t task)
 {
 	if ((uint32_t)task < HEALTH_TASK_COUNT) {
@@ -52,16 +77,34 @@ void health_checkin(health_task_id_t task)
 	}
 }
 
+/**
+ * @brief Return the current health state code.
+ *
+ * @return One of the APP_HEALTH_* codes.
+ */
 uint8_t health_state_get(void)
 {
 	return health_state;
 }
 
+/**
+ * @brief Check whether the app has failed its boot health check.
+ *
+ * @return true if the health verdict is FAILED.
+ */
 bool health_is_failed(void)
 {
 	return health_state == APP_HEALTH_FAILED;
 }
 
+/**
+ * @brief Record a check-in tick for all pending tasks.
+ *
+ * Health's own liveness is counted implicitly on every call.
+ *
+ * @param bits Bit mask of tasks that have checked in since the last tick.
+ * @param now  Current uptime in ms.
+ */
 static void checkin_account(uint32_t bits, uint32_t now)
 {
 	for (uint32_t i = 0U; i < HEALTH_TASK_COUNT; i++) {
@@ -76,6 +119,14 @@ static void checkin_account(uint32_t bits, uint32_t now)
 	last_seen[HEALTH_TASK_COUNT] = now;
 }
 
+/**
+ * @brief Flag supervision lost if any supervised task went silent.
+ *
+ * Once latched, the watchdog is no longer kicked and BOOT counts a
+ * failed trial on the next reset.
+ *
+ * @param now Current uptime in ms.
+ */
 static void supervise(uint32_t now)
 {
 	if (supervision_lost) {
@@ -89,6 +140,12 @@ static void supervise(uint32_t now)
 	}
 }
 
+/**
+ * @brief Determine whether the health check conditions are satisfied.
+ *
+ * @return true if every task has checked in enough times and no
+ *         relevant fault is recorded for this trial.
+ */
 static bool health_conditions_met(void)
 {
 #ifdef CONFIG_ZDEMO_FAIL_HEALTH
@@ -113,6 +170,9 @@ static bool health_conditions_met(void)
 #endif
 }
 
+/**
+ * @brief Record a FAILED health verdict and signal the LED thread.
+ */
 static void health_check_fail(void)
 {
 	check_done = true;
@@ -120,12 +180,26 @@ static void health_check_fail(void)
 	(void)led_post_health_failed();
 }
 
+/**
+ * @brief Record a PASSED health verdict.
+ */
 static void health_check_pass(void)
 {
 	check_done = true;
 	health_state = APP_HEALTH_PASSED;
 }
 
+/**
+ * @brief Main health loop.
+ *
+ * Supervises the other tasks, feeds the watchdog at a bounded rate, and
+ * runs the one-shot boot health check (confirm the running slot, or fail
+ * and stop kicking the watchdog) during trial boots.
+ *
+ * @param p1 Unused.
+ * @param p2 Unused.
+ * @param p3 Unused.
+ */
 static void health_thread(void *p1, void *p2, void *p3)
 {
 	ARG_UNUSED(p1);
@@ -181,5 +255,6 @@ static void health_thread(void *p1, void *p2, void *p3)
 	}
 }
 
+/* Health/supervision thread: watchdog feeder + trial check verifier. */
 K_THREAD_DEFINE(zdemo_health_thread, ZDEMO_HEALTH_STACK, health_thread, NULL,
 		NULL, NULL, ZDEMO_PRIO_HEALTH, 0, 0);
