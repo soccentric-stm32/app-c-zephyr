@@ -11,8 +11,8 @@ One commit per file: add/extend Doxygen-style documentation, mark it `done`, com
 | 3 | src/button.c | done |
 | 1 | src/app_fault.h | done |
 | 4 | src/button.h | done |
-| 5 | src/comms.c | pending |
-| 6 | src/comms.h | pending |
+| 5 | src/comms.c | done |
+| 6 | src/comms.h | done |
 | 7 | src/fatal.c | pending |
 | 8 | src/flash_confirm.c | pending |
 | 9 | src/flash_confirm.h | pending |
