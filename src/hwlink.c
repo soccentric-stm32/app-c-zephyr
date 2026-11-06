@@ -15,10 +15,28 @@
 #include <zephyr/sys/crc.h>
 #include "hwlink.h"
 
+/* Size of the HWLINK raw header: proto[1] flags[1] seq[2]. */
 #define HWLINK_HEADER_SIZE   4U
+/* Size of the trailing CRC-32 field, in bytes. */
 #define HWLINK_CRC_SIZE      4U
+/* Total header + CRC overhead, in bytes. */
 #define HWLINK_OVERHEAD      (HWLINK_HEADER_SIZE + HWLINK_CRC_SIZE)
 
+/**
+ * @brief Build the unencoded HWLINK frame (proto, flags, seq, payload, crc32).
+ *
+ * All multi-byte fields are little-endian; the CRC covers everything
+ * except itself.
+ *
+ * @param payload     Payload bytes (may be NULL if payload_len is 0).
+ * @param payload_len Length of payload in bytes.
+ * @param flags       Frame flags (RESPONSE/EVENT).
+ * @param seq         Sequence number.
+ * @param raw         Destination buffer.
+ * @param raw_capacity Capacity of destination buffer.
+ * @param raw_len     Receives the total frame length.
+ * @return true on success, false on bad arguments or overflow.
+ */
 bool hwlink_build_raw(const uint8_t *payload, size_t payload_len,
                       uint8_t flags, uint16_t seq,
                       uint8_t *raw, size_t raw_capacity, size_t *raw_len)
@@ -46,6 +64,16 @@ bool hwlink_build_raw(const uint8_t *payload, size_t payload_len,
     return true;
 }
 
+/**
+ * @brief COBS-encode a raw frame and append the 0x00 frame delimiter.
+ *
+ * @param raw         Raw (unencoded) frame bytes.
+ * @param raw_len     Length of the raw frame.
+ * @param out         Destination buffer (room for encoded bytes + delimiter).
+ * @param out_capacity Capacity of the destination buffer.
+ * @param out_len     Receives the encoded length including the delimiter.
+ * @return true on success, false on bad arguments or overflow.
+ */
 bool hwlink_cobs_encode(const uint8_t *raw, size_t raw_len,
                         uint8_t *out, size_t out_capacity, size_t *out_len)
 {
@@ -98,6 +126,16 @@ bool hwlink_cobs_encode(const uint8_t *raw, size_t raw_len,
     return true;
 }
 
+/**
+ * @brief COBS-decode one frame body (delimiter already stripped).
+ *
+ * @param in          Encoded bytes (no delimiter).
+ * @param in_len      Length of the encoded body.
+ * @param out         Destination buffer.
+ * @param out_capacity Capacity of the destination buffer.
+ * @param out_len     Receives the decoded length.
+ * @return 0 on success, -1 on malformed input or overflow.
+ */
 int hwlink_cobs_decode(const uint8_t *in, size_t in_len,
                        uint8_t *out, size_t out_capacity, size_t *out_len)
 {
@@ -137,6 +175,18 @@ int hwlink_cobs_decode(const uint8_t *in, size_t in_len,
     return 0;
 }
 
+/**
+ * @brief Validate the HWLINK header and CRC of an unencoded frame and return its payload.
+ *
+ * @param raw              Raw frame bytes.
+ * @param raw_len          Length of the raw frame.
+ * @param payload          Destination buffer for the payload.
+ * @param payload_capacity Capacity of the payload buffer.
+ * @param payload_len      Receives the payload length.
+ * @param flags            Receives the frame flags byte.
+ * @param seq              Receives the sequence number.
+ * @return true on success, false on any validation failure.
+ */
 bool hwlink_decode_raw(const uint8_t *raw, size_t raw_len,
                        uint8_t *payload, size_t payload_capacity,
                        size_t *payload_len, uint8_t *flags, uint16_t *seq)
