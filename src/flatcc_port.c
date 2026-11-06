@@ -14,12 +14,20 @@
 #include <string.h>
 #include "flatcc_port.h"
 
+/* Total arena size in bytes; override at build time to resize. */
 #ifndef APP_FLATCC_HEAP_SIZE
 #define APP_FLATCC_HEAP_SIZE (16U * 1024U)
 #endif
 
+/* Alignment guaranteed for every block returned from the arena. */
 #define FLATCC_ALIGNMENT 16U
 
+/**
+ * @brief Header prepended to every arena block.
+ *
+ * @ref flatcc_arena_t is partitioned into a singly linked list of these
+ * blocks; the payload follows the header in memory.
+ */
 typedef struct flatcc_block {
     size_t size;                 /* payload size */
     struct flatcc_block *next;
@@ -27,20 +35,34 @@ typedef struct flatcc_block {
     uint32_t pad;
 } __attribute__((aligned(FLATCC_ALIGNMENT))) flatcc_block_t;
 
+/**
+ * @brief Union view of the static arena, providing natural alignment.
+ */
 typedef union {
     long double align;
     void *pointer;
     unsigned char bytes[APP_FLATCC_HEAP_SIZE];
 } __attribute__((aligned(FLATCC_ALIGNMENT))) flatcc_arena_t;
 
+/** Static .bss arena backing all flatcc allocations. */
 static flatcc_arena_t flatcc_arena;
+/** Head of the free/used block list (NULL until first use). */
 static flatcc_block_t *flatcc_head;
 
+/**
+ * @brief Round a size up to the arena block alignment.
+ *
+ * @param n Requested size.
+ * @return Aligned size.
+ */
 static size_t flatcc_align(size_t n)
 {
     return (n + (FLATCC_ALIGNMENT - 1U)) & ~(size_t)(FLATCC_ALIGNMENT - 1U);
 }
 
+/**
+ * @brief One-shot initialization: seed the arena with a single large free block.
+ */
 static void flatcc_heap_init(void)
 {
     if (flatcc_head == NULL) {
@@ -51,6 +73,15 @@ static void flatcc_heap_init(void)
     }
 }
 
+/**
+ * @brief First-fit allocation from the flatcc arena (see flatcc_port.h).
+ *
+ * Splits the chosen block when the leftover can hold a header plus 16
+ * payload bytes. Not intended to be called concurrently.
+ *
+ * @param size Requested size in bytes.
+ * @return Pointer to the payload, or NULL if no block is large enough.
+ */
 void *app_flatcc_alloc(size_t size)
 {
     flatcc_heap_init();
@@ -82,6 +113,11 @@ void *app_flatcc_alloc(size_t size)
     return NULL;
 }
 
+/**
+ * @brief Return a block to the arena and coalesce with free neighbors.
+ *
+ * @param ptr Pointer previously returned from the arena, or NULL (no-op).
+ */
 void app_flatcc_free(void *ptr)
 {
     if (ptr == NULL) {
@@ -108,6 +144,16 @@ void app_flatcc_free(void *ptr)
     }
 }
 
+/**
+ * @brief Resize an arena block.
+ *
+ * Grows in place when the block is already large enough; otherwise
+ * allocates a new block, copies the old contents and frees the old one.
+ *
+ * @param ptr Existing arena block, or NULL for a fresh allocation.
+ * @param size New size in bytes.
+ * @return Pointer to the (possibly moved) block, or NULL on failure.
+ */
 void *app_flatcc_realloc(void *ptr, size_t size)
 {
     if (ptr == NULL) {
@@ -133,6 +179,13 @@ void *app_flatcc_realloc(void *ptr, size_t size)
     return new_ptr;
 }
 
+/**
+ * @brief Zero-initialized arena allocation with overflow check.
+ *
+ * @param count Number of elements.
+ * @param size  Size of each element in bytes.
+ * @return Zeroed pointer, or NULL on overflow or arena exhaustion.
+ */
 void *app_flatcc_calloc(size_t count, size_t size)
 {
     if (count != 0U && size > (SIZE_MAX / count)) {
@@ -146,12 +199,24 @@ void *app_flatcc_calloc(size_t count, size_t size)
     return ptr;
 }
 
+/**
+ * @brief Aligned arena allocation (the arena already returns 16-byte aligned blocks).
+ *
+ * @param alignment Requested alignment (ignored, see note).
+ * @param size      Requested size in bytes.
+ * @return Aligned pointer, or NULL on exhaustion.
+ */
 void *app_flatcc_aligned_alloc(size_t alignment, size_t size)
 {
     (void)alignment;   /* the arena always returns 16-byte aligned blocks */
     return app_flatcc_alloc(size);
 }
 
+/**
+ * @brief Release an aligned arena block; delegates to app_flatcc_free().
+ *
+ * @param ptr Pointer from app_flatcc_aligned_alloc(), or NULL (no-op).
+ */
 void app_flatcc_aligned_free(void *ptr)
 {
     app_flatcc_free(ptr);
