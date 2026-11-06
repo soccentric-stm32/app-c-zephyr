@@ -28,8 +28,8 @@ One commit per file: add/extend Doxygen-style documentation, mark it `done`, com
 | 19 | src/identity.h | done |
 | 20 | src/iwdg.c | done |
 | 21 | src/iwdg.h | done |
-| 22 | src/led.c | pending |
-| 23 | src/led.h | pending |
+| 22 | src/led.c | done |
+| 23 | src/led.h | done |
 | 24 | src/main.c | pending |
 | 25 | src/reset_cause.c | pending |
 | 26 | src/reset_cause.h | pending |
