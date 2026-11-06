@@ -29,15 +29,33 @@ BUILD_ASSERT(CONFIG_FLASH_LOAD_OFFSET == 0xC000,
 BUILD_ASSERT(CONFIG_FLASH_LOAD_SIZE == 0xF4000,
 	     "ZBT-001: the application slot is 976 KB");
 
-/* The application is heapless: flatcc uses a fixed arena and malloc/free
- * are not linked.  Reporting a private unused heap would make the health
- * check and the Status figures meaningless, so report zero. */
+/**
+ * @brief Report heap usage for Status / health purposes.
+ *
+ * This application is heapless: flatcc uses a fixed static arena and
+ * malloc/free are not linked. Reporting a private unused heap would
+ * make the Status and health figures meaningless, so both are reported
+ * as zero.
+ *
+ * @param free_bytes   Receives 0 (no heap).
+ * @param min_free_bytes Receives 0 (no heap).
+ */
 void app_heap_stats(uint32_t *free_bytes, uint32_t *min_free_bytes)
 {
 	*free_bytes = 0U;
 	*min_free_bytes = 0U;
 }
 
+/**
+ * @brief Zephyr application entry point: early start-up sequence.
+ *
+ * Performs the reset-safe early start-up only (fault record stamp, early
+ * watchdog feed, reset-cause capture, hand-over decode, VTOR check,
+ * second watchdog feed, LED error latch, UART bring-up) and then returns;
+ * Zephyr keeps the statically defined application threads running.
+ *
+ * @return 0 on success.
+ */
 int main(void)
 {
 	/* The fault record is in no-init RAM; bump its boot id first. */
