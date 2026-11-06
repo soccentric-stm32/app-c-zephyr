@@ -22,12 +22,16 @@
 
 #include "app_fault.h"
 
+/** Persistent no-init fault record (declared in app_fault.h). */
 app_fault_record_t g_app_fault __noinit;
+/** Monotonic boot counter, survives reset; distinguishes boots. */
 static uint32_t app_boot_id __noinit;
-
+/** GPIO port of the fault-indicator LED (LD3). */
 #define FAULT_LED_PORT GPIOB
+/** Pin of the fault-indicator LED on FAULT_LED_PORT. */
 #define FAULT_LED_PIN  14U
 
+/** Human-readable names for each app_fault_reason_t value, in enum order. */
 static const char *const fault_reason_names[] = {
 	"none",
 	"hard_fault",
@@ -40,6 +44,15 @@ static const char *const fault_reason_names[] = {
 	"startup"
 };
 
+/**
+ * @brief Copy a string with a fixed destination size (NUL-safe).
+ *
+ * A NULL source produces an empty string. Always NUL-terminates.
+ *
+ * @param dst       Destination buffer.
+ * @param dst_size  Size of the destination buffer.
+ * @param src       Source string, may be NULL.
+ */
 static void fault_copy(char *dst, uint32_t dst_size, const char *src)
 {
 	uint32_t i = 0U;
@@ -56,6 +69,9 @@ static void fault_copy(char *dst, uint32_t dst_size, const char *src)
 	dst[i] = '\0';
 }
 
+/**
+ * @brief Stamp the beginning of a new boot into the fault record state.
+ */
 void app_fault_boot_start(void)
 {
 	app_boot_id++;
@@ -64,17 +80,32 @@ void app_fault_boot_start(void)
 	}
 }
 
+/**
+ * @brief Check whether the fault record is present and sane.
+ *
+ * @return true if the magic and reason fields are valid.
+ */
 bool app_fault_is_valid(void)
 {
 	return g_app_fault.magic == APP_FAULT_MAGIC &&
 	       g_app_fault.reason <= (uint32_t)APP_FAULT_STARTUP;
 }
 
+/**
+ * @brief Check whether the recorded fault occurred in this boot.
+ *
+ * @return true if the record's boot id matches the current boot id.
+ */
 bool app_fault_is_current_boot(void)
 {
 	return app_fault_is_valid() && g_app_fault.boot_id == app_boot_id;
 }
 
+/**
+ * @brief Check whether the recorded fault occurred in the previous boot.
+ *
+ * @return true if the record's boot id is the one before the current.
+ */
 bool app_fault_is_previous_boot(void)
 {
 	uint32_t previous = app_boot_id - 1U;
@@ -85,6 +116,12 @@ bool app_fault_is_previous_boot(void)
 	return app_fault_is_valid() && g_app_fault.boot_id == previous;
 }
 
+/**
+ * @brief Human-readable text for a fault reason (never NULL).
+ *
+ * @param reason Fault reason.
+ * @return Read-only name, or "unknown" for out-of-range values.
+ */
 const char *app_fault_reason_text(app_fault_reason_t reason)
 {
 	if ((uint32_t)reason >= (sizeof(fault_reason_names) /
@@ -94,16 +131,32 @@ const char *app_fault_reason_text(app_fault_reason_t reason)
 	return fault_reason_names[reason];
 }
 
+/**
+ * @brief Task name from the fault record (NUL-terminated).
+ *
+ * @return Read-only stored task name.
+ */
 const char *app_fault_task(void)
 {
 	return g_app_fault.task;
 }
 
+/**
+ * @brief Source file name from the fault record (NUL-terminated).
+ *
+ * @return Read-only stored file name.
+ */
 const char *app_fault_file(void)
 {
 	return g_app_fault.file;
 }
 
+/**
+ * @brief Write the full fault record with magic-last ordering.
+ *
+ * The magic is cleared first so an interrupted write is never mistaken
+ * for a complete record.
+ */
 static void app_fault_save(app_fault_reason_t reason, uint32_t cfsr,
 			   uint32_t hfsr, uint32_t mmfar, uint32_t bfar,
 			   uint32_t pc, uint32_t lr, uint32_t psr,
@@ -132,18 +185,34 @@ static void app_fault_save(app_fault_reason_t reason, uint32_t cfsr,
 	__DSB();
 }
 
+/**
+ * @brief Invalidate the fault record (clears the magic).
+ */
 void app_fault_clear(void)
 {
 	g_app_fault.magic = 0U;
 	__DMB();
 }
 
+/**
+ * @brief Drive the fault LED (LD3) on or off via raw registers.
+ *
+ * Works with interrupts disabled and before drivers are up.
+ *
+ * @param on true to switch the LED on.
+ */
 static void fault_led3(bool on)
 {
 	FAULT_LED_PORT->BSRR = on ? (1UL << FAULT_LED_PIN)
 				  : ((1UL << FAULT_LED_PIN) << 16U);
 }
 
+/**
+ * @brief Signal the fatal error on LD3 (three flashes, pause, repeat)
+ * and reset the system.
+ *
+ * Uses only register accesses and k_busy_wait; safe from any context.
+ */
 static void fault_show_and_reset(void)
 {
 	__disable_irq();
@@ -175,6 +244,16 @@ static void fault_show_and_reset(void)
 	}
 }
 
+/**
+ * @brief Map a Zephyr fatal error code to an app fault reason.
+ *
+ * Zephyr 4.x reports Cortex-M exceptions with arch-specific reasons
+ * (K_ERR_ARM_MEM_*, K_ERR_ARM_BUS_*, K_ERR_ARM_USAGE_*), not only
+ * K_ERR_CPU_EXCEPTION; unmapped codes default to STARTUP.
+ *
+ * @param reason Zephyr fatal error code.
+ * @return Corresponding app fault reason.
+ */
 static app_fault_reason_t fatal_reason(unsigned int reason)
 {
 	/* Zephyr 4.x reports Cortex-M exceptions with arch-specific reasons
@@ -227,6 +306,15 @@ static app_fault_reason_t fatal_reason(unsigned int reason)
 	}
 }
 
+/**
+ * @brief Zephyr fatal error handler: save the fault record, flash LD3, reset.
+ *
+ * Captures the current task name and faulting PC/LR/PSR from the saved
+ * frame, stores a no-init fault record, then signals and resets.
+ *
+ * @param reason Zephyr fatal error code.
+ * @param esf    Saved exception frame, may be NULL.
+ */
 void k_sys_fatal_error_handler(unsigned int reason, const struct arch_esf *esf)
 {
 	const char *task = "kernel";
