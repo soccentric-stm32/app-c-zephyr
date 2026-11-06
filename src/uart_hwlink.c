@@ -23,21 +23,34 @@
 #include "uart_hwlink.h"
 #include "zdemo.h"
 
+/* Size of the software receive ring buffer, in bytes. */
 #define UART_RX_RING_SIZE 4096U
+/* Default timeout (ms) for a UART transmit completion. */
 #define UART_TX_TIMEOUT   200U
 
+/** USART3 device (PD8 TX, PD9 RX) used for HWLINK. */
 static const struct device *const uart = DEVICE_DT_GET(DT_NODELABEL(usart3));
 
+/** Software receive ring fed by the UART ISR. */
 RING_BUF_DECLARE(uart_rx_ring, UART_RX_RING_SIZE);
 
+/** Semaphore signalled when a frame's last byte has left the UART. */
 static K_SEM_DEFINE(uart_tx_sem, 0, 1);
 
+/** Scratch buffer for one outgoing frame, drained by the ISR. */
 static uint8_t uart_tx_buf[HWLINK_MAX_ENCODED];
+/** Length of the frame currently in uart_tx_buf. */
 static volatile uint16_t uart_tx_len;
+/** Offset of the next byte to transmit within uart_tx_buf. */
 static volatile uint16_t uart_tx_pos;
+/** true while RX is actively collecting into the ring. */
 static volatile bool uart_rx_enabled;
+/** Currently active baud rate. */
 static uint32_t uart_baud = APP_UART_DEFAULT_BAUD;
 
+/**
+ * @brief Clear UART error flags (ORE/FE/NE/PE) if any are set.
+ */
 static void uart_clear_errors(void)
 {
 	uint32_t isr = USART3->ISR;
@@ -52,6 +65,13 @@ static void uart_clear_errors(void)
 	}
 }
 
+/**
+ * @brief Combined RX/TX interrupt handler.
+ *
+ * Drains the receive FIFO into the ring buffer and the transmit buffer
+ * out of the FIFO, signalling the completion semaphore when the last byte
+ * of a frame has been loaded into the shift register.
+ */
 static void uart_isr(const struct device *dev, void *user_data)
 {
 	ARG_UNUSED(user_data);
@@ -84,6 +104,9 @@ static void uart_isr(const struct device *dev, void *user_data)
 	}
 }
 
+/**
+ * @brief (Re)start RX collection: reset the ring and enable RX/err IRQs.
+ */
 static void uart_rx_start(void)
 {
 	ring_buf_reset(&uart_rx_ring);
@@ -92,6 +115,15 @@ static void uart_rx_start(void)
 	uart_rx_enabled = true;
 }
 
+/**
+ * @brief Configure USART3 for HWLINK (8N1, no flow control) and enable RX.
+ *
+ * The Zephyr console, shell and log backends are disabled on this UART, so
+ * every byte belongs to HWLINK (COM-007).
+ *
+ * @return true on success, false if the device is not ready or configuration
+ *         fails.
+ */
 bool hwlink_uart_init(void)
 {
 	if (!device_is_ready(uart)) {
@@ -116,6 +148,16 @@ bool hwlink_uart_init(void)
 	return true;
 }
 
+/**
+ * @brief Change the UART baud rate to APP_UART_DEFAULT_BAUD or APP_UART_FAST_BAUD.
+ *
+ * RX is disabled during the reconfiguration; on failure the previous rate
+ * is restored and RX re-enabled.
+ *
+ * @param baud Requested rate (one of the two legal values).
+ * @return true on success, false if the rate is illegal or the configure
+ *         call fails.
+ */
 bool hwlink_uart_set_baud(uint32_t baud)
 {
 	if (baud != APP_UART_DEFAULT_BAUD && baud != APP_UART_FAST_BAUD) {
@@ -150,21 +192,46 @@ bool hwlink_uart_set_baud(uint32_t baud)
 	return true;
 }
 
+/**
+ * @brief Return the currently active baud rate.
+ */
 uint32_t hwlink_uart_baud(void)
 {
 	return uart_baud;
 }
 
+/**
+ * @brief Drain up to max_len bytes of received data from the RX ring.
+ *
+ * @param dst     Destination buffer.
+ * @param max_len Maximum number of bytes to read.
+ * @return Number of bytes actually read (0 if empty).
+ */
 uint32_t hwlink_uart_read(uint8_t *dst, uint32_t max_len)
 {
 	return ring_buf_get(&uart_rx_ring, dst, max_len);
 }
 
+/**
+ * @brief Check whether RX is currently enabled and the device is ready.
+ */
 bool hwlink_uart_rx_running(void)
 {
 	return uart_rx_enabled && device_is_ready(uart);
 }
 
+/**
+ * @brief Transmit a frame and wait for the last stop bit to leave the UART.
+ *
+ * Waits on the TX-complete semaphore, then polls USART3->ISR.TC so the
+ * caller can safely change the baud rate immediately afterwards (DBT-005).
+ *
+ * @param data        Frame bytes to send.
+ * @param len         Number of bytes to send (<= HWLINK_MAX_ENCODED).
+ * @param timeout_ms  Timeout for the TX-complete semaphore.
+ * @return true on success (full frame shifted out), false on timeout or
+ *         illegal size.
+ */
 bool hwlink_uart_send(const uint8_t *data, uint16_t len, uint32_t timeout_ms)
 {
 	if (len == 0U || data == NULL) {
