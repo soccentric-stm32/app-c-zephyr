@@ -21,22 +21,42 @@
 #include "zdemo.h"
 #include "zdemo_threads.h"
 
+/* Debounce window a raw level must hold before it counts as a change. */
 #define BUTTON_DEBOUNCE_MS  30U
+/* Presses shorter than this (and released) are reported as short presses. */
 #define BUTTON_SHORT_MAX_MS 1000U
+/* Presses held at least this long are reported as long presses. */
 #define BUTTON_LONG_MS      2000U
+/* Interval between button-thread check-ins to the health monitor. */
 #define BUTTON_CHECKIN_MS   500U
+/* Maximum time the thread sleeps on the wake semaphore. */
 #define BUTTON_POLL_MS      10U
 
+/** Device-tree descriptor of the user button (alias sw0). */
 static const struct gpio_dt_spec button =
 	GPIO_DT_SPEC_GET(DT_ALIAS(sw0), gpios);
+/** GPIO callback context for the button interrupt. */
 static struct gpio_callback button_cb;
+/** Semaphore signalled by the button ISR to wake the thread. */
 static K_SEM_DEFINE(button_sem, 0, 1);
 
+/**
+ * @brief Read the raw, un-debounced level of the button pin.
+ *
+ * @return true if the pin reads high (button physically pressed),
+ *         false if low.
+ */
 static bool button_raw(void)
 {
 	return gpio_pin_get_raw(button.port, button.pin) > 0;
 }
 
+/**
+ * @brief GPIO interrupt handler for the button.
+ *
+ * Only wakes the button thread; all debounce and press classification is
+ * done in thread context.
+ */
 static void button_isr(const struct device *port, struct gpio_callback *cb,
 		       gpio_port_pins_t pins)
 {
@@ -47,6 +67,16 @@ static void button_isr(const struct device *port, struct gpio_callback *cb,
 	k_sem_give(&button_sem);
 }
 
+/**
+ * @brief Button debounce and short/long press classification thread.
+ *
+ * Wakes on the button ISR semaphore (with a polling fallback), debounces
+ * the raw pin level, and posts a message to the LED thread on release:
+ * - short press: release after less than 1 s
+ * - long press:  held for at least 2 s (posted once, while held)
+ *
+ * Also check-ins with the health monitor periodically.
+ */
 static void button_thread(void *p1, void *p2, void *p3)
 {
 	ARG_UNUSED(p1);
@@ -117,5 +147,6 @@ static void button_thread(void *p1, void *p2, void *p3)
 	}
 }
 
+/* Button thread: debounce + short/long press detection. */
 K_THREAD_DEFINE(zdemo_button_thread, ZDEMO_BUTTON_STACK, button_thread, NULL,
 		NULL, NULL, ZDEMO_PRIO_BUTTON, 0, 0);
