@@ -16,10 +16,10 @@ One commit per file: add/extend Doxygen-style documentation, mark it `done`, com
 | 7 | src/fatal.c | done |
 | 8 | src/flash_confirm.c | done |
 | 9 | src/flash_confirm.h | done |
-| 10 | src/flatcc_port.c | pending |
+| 10 | src/flatcc_port.c | done |
 | 11 | src/flatcc_port.h | done |
-| 12 | src/handover.c | pending |
-| 13 | src/handover.h | pending |
+| 12 | src/handover.c | done |
+| 13 | src/handover.h | done |
 | 14 | src/health.c | pending |
 | 15 | src/health.h | pending |
 | 16 | src/hwlink.c | pending |
