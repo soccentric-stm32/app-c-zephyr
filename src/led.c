@@ -21,21 +21,34 @@
 #include "zdemo.h"
 #include "zdemo_threads.h"
 
+/* Maximum number of LED messages queued. */
 #define LED_QUEUE_LENGTH 8U
+/* LED thread check-in period to the health monitor. */
 #define LED_CHECKIN_MS   500U
 
+/* LD3 fast-blink period (ms) used for the health-failed error display. */
 #define LED_ERROR_FAST_PERIOD 100U
+/* Sentinel meaning "no further transition". */
 #define NO_TRANSITION         0xFFFFFFFFUL
 
+/**
+ * @brief Message types sent to the LED thread via the LED message queue.
+ */
 typedef enum {
-	LED_MSG_SET = 0,
-	LED_MSG_SET_ALL,
-	LED_MSG_BUTTON,
-	LED_MSG_CLEAR_ERROR,
-	LED_MSG_HEALTH_FAILED,
-	LED_MSG_ERROR
+	LED_MSG_SET = 0,          /**< Set one LED's pattern and period. */
+	LED_MSG_SET_ALL,          /**< Set both user LEDs together. */
+	LED_MSG_BUTTON,           /**< Button press (1 = short, 2 = long). */
+	LED_MSG_CLEAR_ERROR,      /**< Clear all error flags. */
+	LED_MSG_HEALTH_FAILED,    /**< Raise the health-failed error flag. */
+	LED_MSG_ERROR             /**< Raise arbitrary error flags. */
 } led_msg_type_t;
 
+/**
+ * @brief Work item carried in the LED message queue.
+ *
+ * Field meanings depend on @ref led_msg_type_t; unused fields may contain
+ * stale data.
+ */
 typedef struct {
 	uint8_t type;
 	uint8_t led;
@@ -46,23 +59,45 @@ typedef struct {
 	bool force;
 } led_msg_t;
 
+/**
+ * @brief Pattern state for one LED.
+ *
+ * Transitions are computed from the @ref start timestamp so scheduler
+ * jitter does not accumulate.
+ */
 typedef struct {
 	uint8_t pattern;
 	uint16_t period;
 	uint32_t start;
 } led_cfg_t;
 
+/** Message queue between producers and the LED thread. */
 K_MSGQ_DEFINE(led_msgq, sizeof(led_msg_t), LED_QUEUE_LENGTH, 4);
 
+/** LD1 (green) GPIO descriptor. */
 static const struct gpio_dt_spec led1 = GPIO_DT_SPEC_GET(DT_ALIAS(led0), gpios);
+/** LD2 (blue) GPIO descriptor. */
 static const struct gpio_dt_spec led2 = GPIO_DT_SPEC_GET(DT_ALIAS(led1), gpios);
+/** LD3 (orange) GPIO descriptor. */
 static const struct gpio_dt_spec led3 = GPIO_DT_SPEC_GET(DT_ALIAS(led2), gpios);
 
+/**
+ * @brief Next pattern id, wrapping at APP_PATTERN_COUNT.
+ *
+ * @param current Current id.
+ * @return Next id.
+ */
 static uint32_t next_pattern(uint32_t current)
 {
 	return (current + 1U) % APP_PATTERN_COUNT;
 }
 
+/**
+ * @brief Drive one LED on or off (no-op if the driver is not ready).
+ *
+ * @param led Descriptor of the LED pin.
+ * @param on  true to switch on.
+ */
 static void led_write(const struct gpio_dt_spec *led, bool on)
 {
 	if (gpio_is_ready_dt(led)) {
@@ -70,6 +105,17 @@ static void led_write(const struct gpio_dt_spec *led, bool on)
 	}
 }
 
+/**
+ * @brief Expand a LED pattern into a sequence of on/off segments.
+ *
+ * Fills the dur[] and on[] arrays; durations sum to one full cycle.
+ *
+ * @param cfg         LED pattern config.
+ * @param second_led  true for the second LED of a CHASE pair.
+ * @param dur         Receives segment durations in ms.
+ * @param on          Receives the level for each segment.
+ * @return Number of segments filled.
+ */
 static uint32_t segments_for(const led_cfg_t *cfg, bool second_led,
 			     uint16_t dur[20], bool on[20])
 {
@@ -177,6 +223,18 @@ static uint32_t segments_for(const led_cfg_t *cfg, bool second_led,
 	return n;
 }
 
+/**
+ * @brief Compute the current level and next transition time for a pattern.
+ *
+ * Position within the cycle is derived from absolute uptime, so jitter is
+ * bounded and never accumulates.
+ *
+ * @param cfg        LED pattern config.
+ * @param second_led true for the second LED of a CHASE pair.
+ * @param now        Current uptime in ms.
+ * @param level      Receives the desired output level.
+ * @param next_ms    Receives the time (ms) until the next level change.
+ */
 static void evaluate(const led_cfg_t *cfg, bool second_led, uint32_t now,
 		     bool *level, uint32_t *next_ms)
 {
@@ -225,6 +283,18 @@ static void evaluate(const led_cfg_t *cfg, bool second_led, uint32_t now,
 	*next_ms = cycle - pos;
 }
 
+/**
+ * @brief Apply a Set/SetAll command to the pattern state.
+ *
+ * CHASE is a pair spanning LED1 and LED2; setting one of them to a
+ * different pattern turns the other off. LD3 is handled independently.
+ *
+ * @param cfg      Pattern state array (three LEDs).
+ * @param led      Target LED id.
+ * @param pattern  New pattern id.
+ * @param period   New period in ms.
+ * @param now      Current uptime in ms (restarts the pattern phase).
+ */
 static void apply_set(led_cfg_t cfg[3], uint8_t led, uint8_t pattern,
 		      uint16_t period, uint32_t now)
 {
@@ -266,6 +336,14 @@ static void apply_set(led_cfg_t cfg[3], uint8_t led, uint8_t pattern,
 	cfg[index].start = now;
 }
 
+/**
+ * @brief Apply one queued message to the pattern state and error flags.
+ *
+ * @param cfg         Pattern state array.
+ * @param msg         The message to process.
+ * @param now         Current uptime in ms.
+ * @param error_flags Receives the updated LD3 error flags.
+ */
 static void handle_message(led_cfg_t cfg[3], const led_msg_t *msg,
 			   uint32_t now, uint32_t *error_flags)
 {
@@ -328,6 +406,17 @@ static void handle_message(led_cfg_t cfg[3], const led_msg_t *msg,
 	}
 }
 
+/**
+ * @brief Main LED loop: evaluate patterns, drive pins, process messages.
+ *
+ * Owns the pattern state and the LD3 error display (health-failed = fast
+ * blink; fault/watchdog = solid). Sleeps until the next pattern transition
+ * or the health check-in deadline, whichever is earlier.
+ *
+ * @param p1 Unused.
+ * @param p2 Unused.
+ * @param p3 Unused.
+ */
 static void led_thread(void *p1, void *p2, void *p3)
 {
 	ARG_UNUSED(p1);
@@ -417,14 +506,29 @@ static void led_thread(void *p1, void *p2, void *p3)
 	}
 }
 
+/* LED pattern display thread. */
 K_THREAD_DEFINE(zdemo_led_thread, ZDEMO_LED_STACK, led_thread, NULL, NULL,
 		NULL, ZDEMO_PRIO_LED, 0, 0);
 
+/**
+ * @brief Queue one message to the LED thread (fails if the queue is full).
+ *
+ * @return 0 on success, -MSGSYS_NOSPACE if the queue is full.
+ */
 static int led_post(const led_msg_t *msg)
 {
 	return k_msgq_put(&led_msgq, msg, K_NO_WAIT);
 }
 
+/**
+ * @brief Ask the LED thread to set one LED's pattern and period.
+ *
+ * @param led     LED id (1..3).
+ * @param pattern Pattern id.
+ * @param period  Period in ms.
+ * @param force   true to bypass the LD3 reservation guard.
+ * @return 0 on success (queued), negative errno on failure.
+ */
 int led_post_set(uint8_t led, uint8_t pattern, uint16_t period, bool force)
 {
 	led_msg_t msg = {
@@ -438,6 +542,13 @@ int led_post_set(uint8_t led, uint8_t pattern, uint16_t period, bool force)
 	return led_post(&msg);
 }
 
+/**
+ * @brief Ask the LED thread to set both user LEDs to the same pattern.
+ *
+ * @param pattern Pattern id.
+ * @param period  Period in ms.
+ * @return 0 on success (queued), negative errno on failure.
+ */
 int led_post_set_all(uint8_t pattern, uint16_t period)
 {
 	led_msg_t msg = {
@@ -449,6 +560,12 @@ int led_post_set_all(uint8_t pattern, uint16_t period)
 	return led_post(&msg);
 }
 
+/**
+ * @brief Report a button press to the LED thread for its effect.
+ *
+ * @param press 1 = short press, 2 = long press.
+ * @return 0 on success (queued), negative errno on failure.
+ */
 int led_post_button(uint8_t press)
 {
 	led_msg_t msg = {
@@ -459,6 +576,11 @@ int led_post_button(uint8_t press)
 	return led_post(&msg);
 }
 
+/**
+ * @brief Ask the LED thread to clear all error flags (stop LD3).
+ *
+ * @return 0 on success (queued), negative errno on failure.
+ */
 int led_post_clear_error(void)
 {
 	led_msg_t msg = { .type = LED_MSG_CLEAR_ERROR };
@@ -466,6 +588,11 @@ int led_post_clear_error(void)
 	return led_post(&msg);
 }
 
+/**
+ * @brief Raise the health-failed error flag (LD3 fast blink).
+ *
+ * @return 0 on success (queued), negative errno on failure.
+ */
 int led_post_health_failed(void)
 {
 	led_msg_t msg = { .type = LED_MSG_HEALTH_FAILED };
@@ -473,6 +600,12 @@ int led_post_health_failed(void)
 	return led_post(&msg);
 }
 
+/**
+ * @brief Raise arbitrary LD3 error flags.
+ *
+ * @param flags APP_ERROR_* bit mask.
+ * @return 0 on success (queued), negative errno on failure.
+ */
 int led_post_error(uint32_t flags)
 {
 	led_msg_t msg = {
