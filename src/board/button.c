@@ -16,10 +16,13 @@
 #include <zephyr/kernel.h>
 
 #include "app/zdemo.h"
+#include "app/task_report.h"
 #include "app/zdemo_threads.h"
 #include "board/button.h"
 #include "board/led.h"
 #include "system/health.h"
+
+LOG_MODULE_DECLARE(app);
 
 /* Debounce window a raw level must hold before it counts as a change. */
 #define BUTTON_DEBOUNCE_MS  30U
@@ -104,8 +107,11 @@ static void button_thread(void *p1, void *p2, void *p3)
 	bool pressed = stable;
 	bool long_sent = false;
 	uint32_t last_checkin = now;
+	struct task_report report = {0};
 
 	for (;;) {
+		TASK_REPORT(report, 2, "Button",
+			    "debounces B1, short press cycles the LED pattern, long press resets it");
 		(void)k_sem_take(&button_sem, K_MSEC(BUTTON_POLL_MS));
 		now = k_uptime_get_32();
 		bool raw = button_raw();

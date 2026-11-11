@@ -17,6 +17,7 @@
 #include <zephyr/logging/log.h>
 
 #include "app/zdemo.h"
+#include "app/task_report.h"
 #include "app/zdemo_threads.h"
 #include "board/led.h"
 #include "comms/comms.h"
@@ -447,8 +448,11 @@ static void led_thread(void *p1, void *p2, void *p3)
 	};
 	uint32_t error_flags = 0U;
 	uint32_t last_checkin = now;
+	struct task_report report = {0};
 
 	for (;;) {
+		TASK_REPORT(report, 1, "LED",
+			    "drives LD1-LD3 patterns, LD3 shows health and fault state");
 		now = k_uptime_get_32();
 		bool led1_on = false;
 		bool led2_on = false;

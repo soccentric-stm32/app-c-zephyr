@@ -15,6 +15,7 @@
 #include <zephyr/logging/log.h>
 
 #include "app/zdemo.h"
+#include "app/task_report.h"
 #include "app/zdemo_threads.h"
 #include "board/led.h"
 #include "boot/flash_confirm.h"
@@ -223,7 +224,11 @@ static void health_thread(void *p1, void *p2, void *p3)
 	bool pending = g_handover.present && g_handover.trial == 2U;
 	health_state = pending ? APP_HEALTH_RUNNING : APP_HEALTH_NOT_REQUIRED;
 
+	struct task_report report = {0};
+
 	for (;;) {
+		TASK_REPORT(report, 3, "Health",
+			    "watches thread check-ins, kicks the watchdog, confirms the slot");
 		uint32_t bits = k_event_wait(&health_events, HEALTH_EVT_MASK,
 					     true, K_MSEC(HEALTH_LOOP_MS));
 

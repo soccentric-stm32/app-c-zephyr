@@ -22,6 +22,7 @@
 #include <zephyr/logging/log_ctrl.h>
 
 #include "app/zdemo.h"
+#include "app/task_report.h"
 #include "board/led.h"
 #include "boot/boot_contract.h"
 #include "boot/handover.h"
@@ -953,8 +954,11 @@ static void comms_thread(void *p1, void *p2, void *p3)
 
 	comms_event_t event;
 	uint32_t last_checkin = k_uptime_get_32();
+	struct task_report report = {0};
 
 	for (;;) {
+		TASK_REPORT(report, 4, "Comms",
+			    "serves HWLINK on USART3: info, identity, button and LED commands");
 		if (k_msgq_get(&comms_msgq, &event, K_MSEC(COMMS_LOOP_MS)) == 0) {
 			do {
 				if (event.type == COMMS_EVT_RX) {
