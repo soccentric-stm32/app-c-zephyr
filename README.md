@@ -2,6 +2,8 @@
 
 The NUCLEO-F767ZI demo application in C on Zephyr RTOS. It runs under the A/B bootloader from either slot and does exactly the same job as the C FreeRTOS demo: LED patterns, the user button, HWLINK communication with the desktop GUI, watchdog supervision and self-confirmation after a health check. Keeping the behaviour identical lets you compare C and Rust on FreeRTOS and Zephyr like for like. It is a freestanding Zephyr application built with plain CMake, so no west workspace is needed.
 
+[![The C Zephyr application starting on the board](https://raw.githubusercontent.com/soccentric-stm32/soccentric-stm32.github.io/main/assets/shots/term-app-zephyr.webp)](https://soccentric-stm32.github.io/#app-zephyr)
+
 ## Features
 
 - Runs from either bootloader slot, linked at `0x0800C000`
