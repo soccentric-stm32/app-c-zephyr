@@ -324,10 +324,10 @@ static bool send_hello_reply(uint16_t seq)
 	uint32_t rev_id = (idcode >> 16U) & 0xFFFFU;
 
 	hwlink_HelloReply_ref_t reply = hwlink_HelloReply_create(
-		&builder, hwlink_Role_DEMO, name, version, commit, build, detail,
+		&builder, hwlink_Role_DEMO, name, version, commit, build,
 		device_uid(), dev_id, rev_id, flash_mode(),
 		(uint16_t)HWLINK_PROTOCOL_MAJOR, (uint16_t)HWLINK_PROTOCOL_MINOR,
-		(uint16_t)HWLINK_MAX_FRAME);
+		(uint16_t)HWLINK_MAX_FRAME, detail);
 
 	return reply != 0 &&
 	       send_body(hwlink_Body_as_HelloReply(reply), seq,
