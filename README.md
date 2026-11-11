@@ -59,8 +59,6 @@ Headers are included with a module prefix, for example
 
 ## Documentation
 
-- [Software Requirements Specification](docs/SRS.md)
-- [Doxygen documentation status](docs/DOXYGEN.md)
 - [HWLINK protocol schema](protocol/README.md)
 - [Docker development environment](docker/README.md)
 
