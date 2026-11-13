@@ -6,6 +6,11 @@ The NUCLEO-F767ZI demo application in C on Zephyr RTOS. It runs under the A/B bo
 
 The debug log from a reset on a NUCLEO-F767ZI (USART6, 115200 8N1), recorded from the board. [Watch it replay line by line](https://soccentric-stm32.github.io/#app-zephyr) on the project page.
 
+![Debug terminal output from a reset on a NUCLEO-F767ZI](docs/debug-terminal.svg)
+
+<details>
+<summary>Plain text</summary>
+
 ```console
 $ make flash PORT=/dev/ttyACM0
 Activate: ok, device is resetting
@@ -31,6 +36,8 @@ Activate: ok, device is resetting
 [   6011] C-ZEP I task 4 Comms: serves HWLINK on USART3: info, identity, button and LED commands
 [   6011] C-ZEP I task 2 Button: debounces B1, short press cycles the LED pattern, long press resets it
 ```
+
+</details>
 
 ## Features
 
